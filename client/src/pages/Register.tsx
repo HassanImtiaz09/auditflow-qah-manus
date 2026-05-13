@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { GRADES } from "@/lib/auditConstants";
 import { trpc } from "@/lib/trpc";
+import PasswordStrengthMeter from "@/components/shared/PasswordStrengthMeter";
 
 const CONSULTANT_GRADES = ["Consultant", "Associate Specialist", "Specialty Doctor"];
 
@@ -223,6 +224,7 @@ export default function Register() {
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <PasswordStrengthMeter password={form.password} />
             </div>
 
             <div className="space-y-1.5">

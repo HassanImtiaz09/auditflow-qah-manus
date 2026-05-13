@@ -29,3 +29,11 @@
 - [x] Password reset flow — add Forgot password? link on login page
 - [x] Password reset flow — build /forgot-password and /reset-password pages
 - [x] Password reset flow — write vitest tests for reset procedures (6 tests passing)
+
+## New Features (Round 3)
+
+- [x] Audit re-assignment — admin control to change the assigned supervisor on a pending audit (tRPC procedure + UI in Audit Registry)
+- [x] Approval Queue badge — show pending audit count badge on sidebar nav item for the logged-in consultant
+- [x] Password strength indicator — visual strength meter on Register and ResetPassword forms
+- [x] Fix authentication context — context.ts now uses NHS JWT verification for protectedProcedure (was using Manus OAuth SDK which rejected NHS tokens)
+- [x] Fix session expiry redirect — getLoginUrl() now returns /login instead of Manus OAuth portal

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, refNumber, status, supervisorId, supervisorName, archived FROM audits LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, refNumber, status, supervisorId, supervisorName, archived FROM audits LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "refNumber": "REF-20260513-0001",
+      "status": "pending",
+      "supervisorId": "NULL",
+      "supervisorName": "NULL",
+      "archived": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\trefNumber\tstatus\tsupervisorId\tsupervisorName\tarchived\n1\tREF-20260513-0001\tpending\tNULL\tNULL\t0\n",
+  "stderr": "",
+  "execution_time_ms": 266
+}

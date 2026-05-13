@@ -346,6 +346,33 @@ const auditRouter = router({
       return { success: true };
     }),
 
+  // Admin-only: reassign the supervising consultant on a pending audit
+  reassign: protectedProcedure
+    .input(
+      z.object({
+        auditId: z.number(),
+        /** Pass null to remove the supervisor assignment */
+        supervisorId: z.number().nullable(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      let supervisorName: string | null = null;
+      if (input.supervisorId !== null) {
+        const sup = await getUserById(input.supervisorId);
+        if (!sup || (sup.auditRole !== "consultant" && sup.auditRole !== "admin")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid consultant selected." });
+        }
+        supervisorName = sup.fullName ?? sup.name ?? null;
+      }
+      await updateAudit(input.auditId, {
+        supervisorId: input.supervisorId,
+        supervisorName,
+      });
+      return { success: true };
+    }),
+
   consultants: protectedProcedure.query(async () => {
     const consultants = await getApprovedConsultants();
     return consultants.map((c) => ({

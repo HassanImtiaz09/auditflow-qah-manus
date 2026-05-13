@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import PasswordStrengthMeter from "@/components/shared/PasswordStrengthMeter";
 
 export default function ResetPassword() {
   const [, navigate] = useLocation();
@@ -115,6 +116,7 @@ export default function ResetPassword() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <PasswordStrengthMeter password={newPassword} />
                 </div>
 
                 <div className="space-y-1.5">
