@@ -1,6 +1,6 @@
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { audits, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
+import { auditEvents, audits, InsertAuditEvent, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -247,4 +247,22 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   const db = await getDb();
   if (!db) return;
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
+// ─── Audit Event helpers (Audit Trail) ───────────────────────────────────────
+
+export async function createAuditEvent(data: InsertAuditEvent) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(auditEvents).values(data);
+}
+
+export async function getAuditEvents(auditId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.auditId, auditId))
+    .orderBy(auditEvents.createdAt);
 }

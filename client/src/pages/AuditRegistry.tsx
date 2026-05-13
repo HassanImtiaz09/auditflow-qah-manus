@@ -1,4 +1,4 @@
-// AuditRegistry -- tRPC backend
+// AuditRegistry -- with expandable audit trail history panel
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,21 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Archive, ArchiveRestore, Download, UserCheck } from "lucide-react";
+import {
+  Search,
+  Archive,
+  ArchiveRestore,
+  Download,
+  UserCheck,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  FileText,
+  ArchiveIcon,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import StatusBadge from "@/components/shared/StatusBadge";
 import PriorityBadge from "@/components/shared/PriorityBadge";
@@ -21,6 +35,130 @@ interface ReassignState {
   currentSupervisorId: number | null;
 }
 
+// ─── Event type config ────────────────────────────────────────────────────────
+
+const EVENT_CONFIG: Record<
+  string,
+  { label: string; icon: React.ReactNode; colour: string }
+> = {
+  submitted: {
+    label: "Submitted",
+    icon: <FileText className="w-3.5 h-3.5" />,
+    colour: "text-blue-600 bg-blue-50 border-blue-200",
+  },
+  approved: {
+    label: "Approved",
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+    colour: "text-green-600 bg-green-50 border-green-200",
+  },
+  rejected: {
+    label: "Rejected",
+    icon: <XCircle className="w-3.5 h-3.5" />,
+    colour: "text-red-600 bg-red-50 border-red-200",
+  },
+  reassigned: {
+    label: "Reassigned",
+    icon: <RefreshCw className="w-3.5 h-3.5" />,
+    colour: "text-purple-600 bg-purple-50 border-purple-200",
+  },
+  archived: {
+    label: "Archived",
+    icon: <ArchiveIcon className="w-3.5 h-3.5" />,
+    colour: "text-gray-600 bg-gray-50 border-gray-200",
+  },
+  unarchived: {
+    label: "Restored",
+    icon: <ArchiveRestore className="w-3.5 h-3.5" />,
+    colour: "text-gray-600 bg-gray-50 border-gray-200",
+  },
+  draft_saved: {
+    label: "Draft saved",
+    icon: <Clock className="w-3.5 h-3.5" />,
+    colour: "text-yellow-600 bg-yellow-50 border-yellow-200",
+  },
+};
+
+// ─── History panel (lazy-loaded per audit) ────────────────────────────────────
+
+function AuditHistoryPanel({ auditId }: { auditId: number }) {
+  const { data: events = [], isLoading, isError, refetch } = trpc.audits.history.useQuery({ auditId });
+
+  if (isLoading) {
+    return (
+      <div className="px-6 py-4 text-sm text-muted-foreground animate-pulse">
+        Loading history...
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="px-6 py-4 bg-muted/30 border-t border-border flex items-center gap-3">
+        <p className="text-sm text-red-600">Failed to load audit trail.</p>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="px-6 py-4 text-sm text-muted-foreground italic">
+        No history recorded for this audit.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-4 bg-muted/30 border-t border-border">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+        Audit Trail
+      </p>
+      <ol className="relative border-l border-border ml-2 space-y-4">
+        {events.map((ev) => {
+          const cfg = EVENT_CONFIG[ev.eventType] ?? {
+            label: ev.eventType,
+            icon: <Clock className="w-3.5 h-3.5" />,
+            colour: "text-gray-600 bg-gray-50 border-gray-200",
+          };
+          return (
+            <li key={ev.id} className="ml-4">
+              {/* Timeline dot */}
+              <span
+                className={`absolute -left-[9px] flex items-center justify-center w-4 h-4 rounded-full border ${cfg.colour}`}
+              >
+                {cfg.icon}
+              </span>
+              <div className="flex items-start gap-3">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.colour}`}
+                >
+                  {cfg.icon}
+                  {cfg.label}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">
+                    <span className="font-medium">{ev.actorName ?? "System"}</span>
+                  </p>
+                  {ev.detail && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{ev.detail}</p>
+                  )}
+                </div>
+                <time className="text-xs text-muted-foreground whitespace-nowrap">
+                  {new Date(ev.createdAt).toLocaleString()}
+                </time>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function AuditRegistry() {
   const utils = trpc.useUtils();
   const { data: currentUser } = trpc.auth.currentUser.useQuery();
@@ -29,13 +167,14 @@ export default function AuditRegistry() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showArchived, setShowArchived] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const [reassignState, setReassignState] = useState<ReassignState | null>(null);
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string>("");
 
   const archiveMutation = trpc.audits.archive.useMutation({
     onSuccess: () => utils.audits.list.invalidate(),
-    onError: err => toast.error(err.message),
+    onError: (err) => toast.error(err.message),
   });
 
   const reassignMutation = trpc.audits.reassign.useMutation({
@@ -44,10 +183,10 @@ export default function AuditRegistry() {
       setReassignState(null);
       toast.success("Supervisor updated successfully.");
     },
-    onError: err => toast.error(err.message),
+    onError: (err) => toast.error(err.message),
   });
 
-  const filtered = audits.filter(a => {
+  const filtered = audits.filter((a) => {
     if (!showArchived && a.archived) return false;
     if (showArchived && !a.archived) return false;
     if (statusFilter !== "all" && a.status !== statusFilter) return false;
@@ -65,22 +204,43 @@ export default function AuditRegistry() {
   });
 
   const exportCsv = () => {
-    const h = ["Ref", "Category", "Submitter", "Grade", "Supervisor", "Priority", "Status", "Setting", "Topic", "Submitted"];
-    const r = filtered.map(a => [
-      a.refNumber, a.category, a.submitterName ?? "", a.submitterGrade ?? "",
+    const h = [
+      "Ref",
+      "Category",
+      "Submitter",
+      "Grade",
+      "Supervisor",
+      "Priority",
+      "Status",
+      "Setting",
+      "Topic",
+      "Submitted",
+    ];
+    const r = filtered.map((a) => [
+      a.refNumber,
+      a.category,
+      a.submitterName ?? "",
+      a.submitterGrade ?? "",
       a.supervisorName ?? "Unassigned",
-      a.priority, a.status, a.clinicalSetting, a.topic ?? "",
+      a.priority,
+      a.status,
+      a.clinicalSetting,
+      a.topic ?? "",
       a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "",
     ]);
-    const csv = [h, ...r].map(row => row.map(v => `"${v}"`).join(",")).join("\n");
+    const csv = [h, ...r]
+      .map((row) => row.map((v) => `"${v}"`).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const el = document.createElement("a");
-    el.href = url; el.download = "audit-registry.csv"; el.click();
+    el.href = url;
+    el.download = "audit-registry.csv";
+    el.click();
     URL.revokeObjectURL(url);
   };
 
-  const openReassign = (audit: typeof audits[0]) => {
+  const openReassign = (audit: (typeof audits)[0]) => {
     setReassignState({
       auditId: audit.id,
       auditRef: audit.refNumber,
@@ -91,8 +251,16 @@ export default function AuditRegistry() {
 
   const handleReassignConfirm = () => {
     if (!reassignState) return;
-    const newId = selectedSupervisorId === "none" ? null : parseInt(selectedSupervisorId, 10);
-    reassignMutation.mutate({ auditId: reassignState.auditId, supervisorId: newId });
+    const newId =
+      selectedSupervisorId === "none" ? null : parseInt(selectedSupervisorId, 10);
+    reassignMutation.mutate({
+      auditId: reassignState.auditId,
+      supervisorId: newId,
+    });
+  };
+
+  const toggleHistory = (auditId: number) => {
+    setExpandedId((prev) => (prev === auditId ? null : auditId));
   };
 
   const isAdmin = currentUser?.auditRole === "admin";
@@ -102,16 +270,32 @@ export default function AuditRegistry() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold">Audit Registry</h1>
-          <p className="text-sm text-muted-foreground mt-1">All registered clinical audits for QAH ENT.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            All registered clinical audits for QAH ENT. Click any row to view its
+            audit trail.
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
-            {showArchived
-              ? <><ArchiveRestore className="w-4 h-4 mr-1.5" />Show Active</>
-              : <><Archive className="w-4 h-4 mr-1.5" />Show Archived</>}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            {showArchived ? (
+              <>
+                <ArchiveRestore className="w-4 h-4 mr-1.5" />
+                Show Active
+              </>
+            ) : (
+              <>
+                <Archive className="w-4 h-4 mr-1.5" />
+                Show Archived
+              </>
+            )}
           </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
-            <Download className="w-4 h-4 mr-1.5" />Export CSV
+            <Download className="w-4 h-4 mr-1.5" />
+            Export CSV
           </Button>
         </div>
       </div>
@@ -121,14 +305,14 @@ export default function AuditRegistry() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by ref, name, category, supervisor..."
             className="pl-9 text-sm"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
+          onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="all">All statuses</option>
@@ -142,100 +326,179 @@ export default function AuditRegistry() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No audits found.</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No audits found.
+        </p>
       ) : (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Reference</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Category</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Submitter</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Supervisor</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Priority</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Status</th>
-                {isAdmin && <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Actions</th>}
+                <th className="w-8 px-3 py-3" />
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Reference
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Category
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Submitter
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Supervisor
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Priority
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                  Status
+                </th>
+                {isAdmin && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map(audit => (
-                <tr key={audit.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{audit.refNumber}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{audit.category}</p>
-                    {audit.topic && <p className="text-xs text-muted-foreground">{audit.topic}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{audit.submitterName}</p>
-                    <p className="text-xs text-muted-foreground">{audit.submitterGrade}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    {audit.supervisorName ? (
-                      <span className="text-sm">{audit.supervisorName}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Unassigned</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3"><PriorityBadge priority={audit.priority} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={audit.status} /></td>
-                  {isAdmin && (
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {audit.status === "pending" && (
-                          <Button
-                            variant="ghost" size="sm"
-                            onClick={() => openReassign(audit)}
-                            className="text-xs h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <UserCheck className="w-3.5 h-3.5 mr-1" />
-                            Reassign
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={() => archiveMutation.mutate({ auditId: audit.id, archived: !audit.archived })}
-                          className="text-xs h-7"
-                        >
-                          {audit.archived ? "Restore" : "Archive"}
-                        </Button>
-                      </div>
+            <tbody>
+              {filtered.map((audit) => (
+                <>
+                  <tr
+                    key={audit.id}
+                    className="border-t border-border hover:bg-muted/20 transition-colors cursor-pointer"
+                    onClick={() => toggleHistory(audit.id)}
+                  >
+                    {/* Expand chevron */}
+                    <td className="px-3 py-3 text-muted-foreground">
+                      {expandedId === audit.id ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
                     </td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {audit.refNumber}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{audit.category}</p>
+                      {audit.topic && (
+                        <p className="text-xs text-muted-foreground">{audit.topic}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{audit.submitterName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {audit.submitterGrade}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {audit.supervisorName ? (
+                        <span className="text-sm">{audit.supervisorName}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          Unassigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PriorityBadge priority={audit.priority} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={audit.status} />
+                    </td>
+                    {isAdmin && (
+                      <td
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex gap-1">
+                          {audit.status === "pending" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openReassign(audit)}
+                              className="text-xs h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <UserCheck className="w-3.5 h-3.5 mr-1" />
+                              Reassign
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              archiveMutation.mutate({
+                                auditId: audit.id,
+                                archived: !audit.archived,
+                              })
+                            }
+                            className="text-xs h-7"
+                          >
+                            {audit.archived ? "Restore" : "Archive"}
+                          </Button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                  {/* Expandable history panel */}
+                  {expandedId === audit.id && (
+                    <tr key={`history-${audit.id}`} className="border-t border-border">
+                      <td colSpan={isAdmin ? 8 : 7} className="p-0">
+                        <AuditHistoryPanel auditId={audit.id} />
+                      </td>
+                    </tr>
                   )}
-                </tr>
+                </>
               ))}
             </tbody>
           </table>
         </div>
       )}
 
-      <Dialog open={!!reassignState} onOpenChange={open => { if (!open) setReassignState(null); }}>
+      <Dialog
+        open={!!reassignState}
+        onOpenChange={(open) => {
+          if (!open) setReassignState(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reassign Supervising Consultant</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <p className="text-sm text-muted-foreground mb-4">
-              Audit <span className="font-mono font-semibold text-foreground">{reassignState?.auditRef}</span> -- select a new supervising consultant or remove the assignment.
+              Audit{" "}
+              <span className="font-mono font-semibold text-foreground">
+                {reassignState?.auditRef}
+              </span>{" "}
+              -- select a new supervising consultant or remove the assignment.
             </p>
-            <label className="block text-sm font-medium mb-1.5">Supervising Consultant</label>
+            <label className="block text-sm font-medium mb-1.5">
+              Supervising Consultant
+            </label>
             <select
               value={selectedSupervisorId}
-              onChange={e => setSelectedSupervisorId(e.target.value)}
+              onChange={(e) => setSelectedSupervisorId(e.target.value)}
               className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="none">-- No supervisor assigned --</option>
-              {consultants.map(c => (
+              {consultants.map((c) => (
                 <option key={c.id} value={c.id.toString()}>
-                  {c.fullName}{c.grade ? ` -- ${c.grade}` : ""}
+                  {c.fullName}
+                  {c.grade ? ` -- ${c.grade}` : ""}
                 </option>
               ))}
             </select>
             {consultants.length === 0 && (
-              <p className="text-xs text-muted-foreground mt-2">No approved consultants are registered yet.</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                No approved consultants are registered yet.
+              </p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReassignState(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setReassignState(null)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleReassignConfirm}
               disabled={reassignMutation.isPending}

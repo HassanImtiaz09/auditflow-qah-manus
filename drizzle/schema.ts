@@ -124,3 +124,31 @@ export const passwordResetTokens = mysqlTable("passwordResetTokens", {
 });
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+
+// --- Audit Events (Audit Trail) -----------------------------------------------
+
+export const auditEvents = mysqlTable("auditEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK -> audits.id */
+  auditId: int("auditId").notNull(),
+  /** FK -> users.id (who performed the action) */
+  actorId: int("actorId"),
+  /** Denormalised actor name for display */
+  actorName: varchar("actorName", { length: 255 }),
+  /** Event type */
+  eventType: mysqlEnum("eventType", [
+    "submitted",
+    "approved",
+    "rejected",
+    "reassigned",
+    "archived",
+    "unarchived",
+    "draft_saved",
+  ]).notNull(),
+  /** Optional human-readable detail (e.g. decision note, new supervisor name) */
+  detail: text("detail"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type InsertAuditEvent = typeof auditEvents.$inferInsert;

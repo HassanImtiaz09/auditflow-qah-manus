@@ -37,3 +37,16 @@
 - [x] Password strength indicator — visual strength meter on Register and ResetPassword forms
 - [x] Fix authentication context — context.ts now uses NHS JWT verification for protectedProcedure (was using Manus OAuth SDK which rejected NHS tokens)
 - [x] Fix session expiry redirect — getLoginUrl() now returns /login instead of Manus OAuth portal
+
+## New Features (Round 4)
+
+- [x] Audit trail — add auditEvents table to schema (auditId, actorId, actorName, eventType, detail, createdAt)
+- [x] Audit trail — migrate DB with pnpm db:push
+- [x] Audit trail — add DB helpers: createAuditEvent, getAuditEvents
+- [x] Audit trail — add tRPC procedure: audits.history (returns events for a given auditId)
+- [x] Audit trail — record event on audit submit (submitted)
+- [x] Audit trail — record event on decide mutation (approved / rejected)
+- [x] Audit trail — record event on reassign mutation (reassigned)
+- [x] Audit trail — record event on archive mutation (archived / unarchived)
+- [x] Audit trail — Audit Registry detail panel: clicking a row expands a history timeline
+- [x] Audit trail — write vitest tests for history procedure

@@ -53,6 +53,8 @@ import {
   getPasswordResetToken,
   markPasswordResetTokenUsed,
   updateUserPassword,
+  createAuditEvent,
+  getAuditEvents,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -305,6 +307,17 @@ const auditRouter = router({
         submittedAt: input.isDraft ? null : now,
       });
 
+      // Record audit trail event
+      if (!input.isDraft) {
+        await createAuditEvent({
+          auditId: (audit as { id: number }).id,
+          actorId: user.id,
+          actorName: user.fullName ?? user.name ?? "Unknown",
+          eventType: "submitted",
+          detail: supervisorName ? `Assigned to ${supervisorName}` : null,
+        });
+      }
+
       return { success: true, refNumber, audit };
     }),
 
@@ -334,6 +347,14 @@ const auditRouter = router({
         decidedById: user.id,
         decidedAt: new Date(),
       });
+      // Record audit trail event
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: input.decision,
+        detail: input.note ?? null,
+      });
       return { success: true };
     }),
 
@@ -343,6 +364,14 @@ const auditRouter = router({
       const user = await getUserById(ctx.user.id);
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await updateAudit(input.auditId, { archived: input.archived });
+      // Record audit trail event
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: input.archived ? "archived" : "unarchived",
+        detail: null,
+      });
       return { success: true };
     }),
 
@@ -370,7 +399,21 @@ const auditRouter = router({
         supervisorId: input.supervisorId,
         supervisorName,
       });
+      // Record audit trail event
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: "reassigned",
+        detail: supervisorName ? `Reassigned to ${supervisorName}` : "Supervisor removed",
+      });
       return { success: true };
+    }),
+
+  history: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .query(async ({ input }) => {
+      return getAuditEvents(input.auditId);
     }),
 
   consultants: protectedProcedure.query(async () => {
