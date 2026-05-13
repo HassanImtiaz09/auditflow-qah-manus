@@ -1,0 +1,9 @@
+{
+  "query": "\nUPDATE users SET\n  name = REPLACE(name, 'Mr. ', 'Mr '),\n  fullName = REPLACE(fullName, 'Mr. ', 'Mr ')\nWHERE auditRole = 'consultant' AND fullName LIKE 'Mr. %';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute \nUPDATE users SET\n  name = REPLACE(name, 'Mr. ', 'Mr '),\n  fullName = REPLACE(fullName, 'Mr. ', 'Mr ')\nWHERE auditRole = 'consultant' AND fullName LIKE 'Mr. %';\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 278
+}

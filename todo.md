@@ -77,3 +77,7 @@
 - [x] Dashboard home — show quick stats (total submitted, pending, approved, rejected)
 - [x] Dashboard home — CTA button linking to Submit Audit form
 - [x] Vitest tests for audits.addComment and audits.comments procedures
+
+## Content Update
+
+- [x] Submit Audit — seed 14 named QAH ENT consultants as pre-approved database accounts; dropdown shows name + specialty

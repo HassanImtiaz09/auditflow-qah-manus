@@ -1,0 +1,115 @@
+{
+  "query": "SELECT id, fullName, grade, approved, roleApproved FROM users WHERE auditRole = 'consultant' AND approved = true AND roleApproved = true ORDER BY fullName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, fullName, grade, approved, roleApproved FROM users WHERE auditRole = 'consultant' AND approved = true AND roleApproved = true ORDER BY fullName;",
+  "rows": [
+    {
+      "id": "30052",
+      "fullName": "Dr Test Consultant",
+      "grade": "Consultant",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90002",
+      "fullName": "Miss Ellie Sproson",
+      "grade": "Consultant — Paediatric and Laryngology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90001",
+      "fullName": "Mr. Costa Repanos",
+      "grade": "Consultant — Head and Neck",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90003",
+      "fullName": "Mr. Erik Nilssen",
+      "grade": "Consultant — Rhinology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90012",
+      "fullName": "Mr. Florian Schmidt",
+      "grade": "Consultant — Head and Neck",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90004",
+      "fullName": "Mr. Hani Nasef",
+      "grade": "Consultant — Head and Neck",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90006",
+      "fullName": "Mr. Harish Vishwanathan",
+      "grade": "Consultant — Rhinology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90008",
+      "fullName": "Mr. Jonathan Buckland",
+      "grade": "Consultant — Otology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90011",
+      "fullName": "Mr. Marcel Geyer",
+      "grade": "Consultant — Otology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90009",
+      "fullName": "Mr. Matt Ward",
+      "grade": "Consultant — Head and Neck",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90010",
+      "fullName": "Mr. Mike Pringle",
+      "grade": "Consultant — Otology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90013",
+      "fullName": "Mr. Moe Alsalem",
+      "grade": "Consultant — Paediatric",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90014",
+      "fullName": "Mr. Rob Chessman",
+      "grade": "Consultant — Otology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90005",
+      "fullName": "Mr. Stephen Hayes",
+      "grade": "Consultant — Rhinology",
+      "approved": "1",
+      "roleApproved": "1"
+    },
+    {
+      "id": "90007",
+      "fullName": "Mr. Tim Biggs",
+      "grade": "Consultant — Rhinology",
+      "approved": "1",
+      "roleApproved": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfullName\tgrade\tapproved\troleApproved\n30052\tDr Test Consultant\tConsultant\t1\t1\n90002\tMiss Ellie Sproson\tConsultant — Paediatric and Laryngology\t1\t1\n90001\tMr. Costa Repanos\tConsultant — Head and Neck\t1\t1\n90003\tMr. Erik Nilssen\tConsultant — Rhinology\t1\t1\n90012\tMr. Florian Schmidt\tConsultant — Head and Neck\t1\t1\n90004\tMr. Hani Nasef\tConsultant — Head and Neck\t1\t1\n90006\tMr. Harish Vishwanathan\tConsultant — Rhinology\t1\t1\n90008\tMr. Jonathan Buckland\tConsultant — Otology\t1\t1\n90011\tMr. Marcel Geyer\tConsultant — Otology\t1\t1\n90009\tMr. Matt Ward\tConsultant — Head and Neck\t1\t1\n90010\tMr. Mike Pringle\tConsultant — Otology\t1\t1\n90013\tMr. Moe Alsalem\tConsultant — Paediatric\t1\t1\n90014\tMr. Rob Chessman\tConsultant — Otology\t1\t1\n90005\tMr. Stephen Hayes\tConsultant — Rhinology\t1\t1\n90007\tMr. Tim Biggs\tConsultant — Rhinology\t1\t1\n",
+  "stderr": "",
+  "execution_time_ms": 271
+}

@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, openId, name, fullName FROM users WHERE fullName LIKE '%Sproson%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, openId, name, fullName FROM users WHERE fullName LIKE '%Sproson%';",
+  "rows": [
+    {
+      "id": "90002",
+      "openId": "consultant-ellie.sproson",
+      "name": "Miss Ellie Sproson",
+      "fullName": "Miss Ellie Sproson"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\tfullName\n90002\tconsultant-ellie.sproson\tMiss Ellie Sproson\tMiss Ellie Sproson\n",
+  "stderr": "",
+  "execution_time_ms": 255
+}

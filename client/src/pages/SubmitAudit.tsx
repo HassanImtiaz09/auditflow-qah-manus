@@ -126,7 +126,12 @@ export default function SubmitAudit() {
             <SelectTrigger className="text-[13px]"><SelectValue placeholder="Select supervising consultant (optional)" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No supervisor assigned</SelectItem>
-              {consultants.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.fullName} — {c.grade}</SelectItem>)}
+              {consultants.map(c => {
+                // grade is stored as "Consultant — Specialty"; extract just the specialty
+                const specialty = c.grade.replace(/^Consultant\s*[—\-]\s*/i, "").trim();
+                const label = specialty ? `${c.fullName} (${specialty})` : c.fullName;
+                return <SelectItem key={c.id} value={String(c.id)}>{label}</SelectItem>;
+              })}
             </SelectContent>
           </Select>
           {consultants.length === 0 && <p className="text-xs text-muted-foreground mt-2">No approved consultants registered yet.</p>}

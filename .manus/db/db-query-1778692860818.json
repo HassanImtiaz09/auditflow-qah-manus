@@ -1,0 +1,66 @@
+{
+  "query": "SELECT fullName, grade FROM users WHERE auditRole = 'consultant' AND approved = true AND roleApproved = true ORDER BY fullName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT fullName, grade FROM users WHERE auditRole = 'consultant' AND approved = true AND roleApproved = true ORDER BY fullName;",
+  "rows": [
+    {
+      "fullName": "Miss Ellie Sproson",
+      "grade": "Consultant — Paediatric and Laryngology"
+    },
+    {
+      "fullName": "Mr Costa Repanos",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "fullName": "Mr Erik Nilssen",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "fullName": "Mr Florian Schmidt",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "fullName": "Mr Hani Nasef",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "fullName": "Mr Harish Vishwanathan",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "fullName": "Mr Jonathan Buckland",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "fullName": "Mr Marcel Geyer",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "fullName": "Mr Matt Ward",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "fullName": "Mr Mike Pringle",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "fullName": "Mr Moe Alsalem",
+      "grade": "Consultant — Paediatric"
+    },
+    {
+      "fullName": "Mr Rob Chessman",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "fullName": "Mr Stephen Hayes",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "fullName": "Mr Tim Biggs",
+      "grade": "Consultant — Rhinology"
+    }
+  ],
+  "messages": [],
+  "stdout": "fullName\tgrade\nMiss Ellie Sproson\tConsultant — Paediatric and Laryngology\nMr Costa Repanos\tConsultant — Head and Neck\nMr Erik Nilssen\tConsultant — Rhinology\nMr Florian Schmidt\tConsultant — Head and Neck\nMr Hani Nasef\tConsultant — Head and Neck\nMr Harish Vishwanathan\tConsultant — Rhinology\nMr Jonathan Buckland\tConsultant — Otology\nMr Marcel Geyer\tConsultant — Otology\nMr Matt Ward\tConsultant — Head and Neck\nMr Mike Pringle\tConsultant — Otology\nMr Moe Alsalem\tConsultant — Paediatric\nMr Rob Chessman\tConsultant — Otology\nMr Stephen Hayes\tConsultant — Rhinology\nMr Tim Biggs\tConsultant — Rhinology\n",
+  "stderr": "",
+  "execution_time_ms": 270
+}
