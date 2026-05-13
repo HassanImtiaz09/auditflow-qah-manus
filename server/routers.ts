@@ -63,6 +63,7 @@ import {
   deleteAudit,
   getAuditsForConsultantAll,
   getUserByLinkedConsultantId,
+  updateLinkedConsultant,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -480,7 +481,7 @@ const auditRouter = router({
           await createNotification({
             recipientId: consultantUser.id,
             userId: ctx.user.id,
-            type: "audit_submitted",
+            type: "audit_assigned",
             message: `${submitterName} has registered audit "${audit.topic ?? audit.refNumber}" (${audit.refNumber}) and selected you as the supervising consultant. Please review it in your Approval Queue.`,
           });
         }
@@ -593,7 +594,7 @@ const auditRouter = router({
             await createNotification({
               recipientId: consultantUser.id,
               userId: user.id,
-              type: "audit_submitted",
+              type: "audit_assigned",
               message: `${submitterName} has registered audit "${input.topic}" (${refNumber}) and selected you as the supervising consultant. Please review it in your Approval Queue.`,
             });
           }
@@ -905,6 +906,22 @@ const usersRouter = router({
       const user = await getUserById(ctx.user.id);
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await updateUserRole(input.userId, input.auditRole);
+      return { success: true };
+    }),
+
+  /**
+   * Admin: update or clear the linkedConsultantId for a user account.
+   * Pass linkedConsultantId: null to unlink.
+   */
+  updateLinkedConsultant: protectedProcedure
+    .input(z.object({
+      userId: z.number(),
+      linkedConsultantId: z.number().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const admin = await getUserById(ctx.user.id);
+      if (!admin || admin.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await updateLinkedConsultant(input.userId, input.linkedConsultantId);
       return { success: true };
     }),
 

@@ -1,8 +1,7 @@
 /**
- * Round 12 tests:
- * 1. users.approve — saves linkedConsultantId when provided
- * 2. audits.myConsultantQueue — returns pending/approved/rejected grouped correctly
- * 3. audits.submitDraft — sends in-app notification to the linked consultant user
+ * Round 13 tests:
+ * 1. users.updateLinkedConsultant — saves new linkedConsultantId and clears it on null
+ * 2. audits.submitDraft — sends audit_assigned (not audit_submitted) notification to consultant
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
@@ -16,11 +15,13 @@ vi.mock("./db", () => ({
   approveUser: vi.fn(),
   rejectUser: vi.fn(),
   updateUserRole: vi.fn(),
+  updateLinkedConsultant: vi.fn(),
   searchUsersByName: vi.fn(),
   updateUserProfile: vi.fn(),
   getUserByEmail: vi.fn(),
   getAdminUser: vi.fn(),
   getUserByLinkedConsultantId: vi.fn(),
+  getUserByOpenId: vi.fn(),
   // Audit helpers
   getAllAudits: vi.fn(),
   getAuditById: vi.fn(),
@@ -52,7 +53,7 @@ vi.mock("./db", () => ({
   updateUserPassword: vi.fn(),
 }));
 
-// ─── Shared fixtures ──────────────────────────────────────────────────────────
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const ADMIN_USER = {
   id: 1,
@@ -86,7 +87,7 @@ const CONSULTANT_USER = {
   roleApproved: true,
   grade: "Consultant",
   title: "Dr",
-  linkedConsultantId: 10, // linked to seeded consultant id=10
+  linkedConsultantId: 10,
   passwordHash: null,
   loginMethod: null,
   createdAt: new Date(),
@@ -122,20 +123,19 @@ function makeAudit(overrides: Partial<Record<string, unknown>> = {}) {
     category: "General ENT",
     clinicalSetting: "Inpatient",
     priority: "Routine" as const,
-    status: "pending" as const,
+    status: "draft" as const,
     submittedById: 3,
     submitterName: "Dr Bob Jones",
     submitterEmail: "bob.jones@nhs.uk",
     submitterGrade: "ST4",
-    supervisorId: 10, // seeded consultant id
+    supervisorId: 10,
     supervisorName: "Dr Jane Smith",
     description: "Test audit description",
     collaborators: "[]",
-    isDraft: false,
     archived: false,
     createdAt: new Date(),
     updatedAt: new Date(),
-    submittedAt: new Date(),
+    submittedAt: null,
     decisionNote: null,
     decidedById: null,
     decidedAt: null,
@@ -145,8 +145,8 @@ function makeAudit(overrides: Partial<Record<string, unknown>> = {}) {
     linkedAuditId: null,
     linkedAuditRef: null,
     auditObjectives: "Improve outcomes",
-    auditStandards: JSON.stringify([{ standard: "NICE", criteria: "Criteria 1", compliance: "100%", exceptions: "" }]),
-    dataCollectionMethodDetail: "Retrospective case note review",
+    auditStandards: JSON.stringify([{ standard: "NICE", criteria: "C1", compliance: "100%", exceptions: "" }]),
+    dataCollectionMethodDetail: "Case note review",
     reasonForAudit: null,
     reasonForAuditOther: null,
     cqcRegulation: null,
@@ -181,166 +181,91 @@ function makeCtx(user = ADMIN_USER) {
   return { user };
 }
 
-// ─── Test Suite 1: users.approve with linkedConsultantId ─────────────────────
+// ─── Test Suite 1: users.updateLinkedConsultant ───────────────────────────────
 
-describe("users.approve — linkedConsultantId linking", () => {
+describe("users.updateLinkedConsultant", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls approveUser with linkedConsultantId when provided", async () => {
+  it("saves a new linkedConsultantId for a consultant user", async () => {
     vi.mocked(db.getUserById).mockResolvedValue(ADMIN_USER);
-    vi.mocked(db.approveUser).mockResolvedValue(undefined);
+    vi.mocked(db.updateLinkedConsultant).mockResolvedValue(undefined);
 
     const caller = appRouter.createCaller(makeCtx(ADMIN_USER));
-    const result = await caller.users.approve({ userId: 2, linkedConsultantId: 10 });
+    const result = await caller.users.updateLinkedConsultant({ userId: 2, linkedConsultantId: 15 });
 
     expect(result.success).toBe(true);
-    expect(db.approveUser).toHaveBeenCalledWith(2, 10);
+    expect(db.updateLinkedConsultant).toHaveBeenCalledWith(2, 15);
   });
 
-  it("calls approveUser without linkedConsultantId for non-consultant accounts", async () => {
+  it("clears the linkedConsultantId (unlink) when null is passed", async () => {
     vi.mocked(db.getUserById).mockResolvedValue(ADMIN_USER);
-    vi.mocked(db.approveUser).mockResolvedValue(undefined);
+    vi.mocked(db.updateLinkedConsultant).mockResolvedValue(undefined);
 
     const caller = appRouter.createCaller(makeCtx(ADMIN_USER));
-    const result = await caller.users.approve({ userId: 3 });
+    const result = await caller.users.updateLinkedConsultant({ userId: 2, linkedConsultantId: null });
 
     expect(result.success).toBe(true);
-    expect(db.approveUser).toHaveBeenCalledWith(3, undefined);
+    expect(db.updateLinkedConsultant).toHaveBeenCalledWith(2, null);
   });
 
   it("rejects non-admin callers with FORBIDDEN", async () => {
     vi.mocked(db.getUserById).mockResolvedValue(CLINICIAN_USER);
 
     const caller = appRouter.createCaller(makeCtx(CLINICIAN_USER));
-    await expect(caller.users.approve({ userId: 2 })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
+    await expect(
+      caller.users.updateLinkedConsultant({ userId: 2, linkedConsultantId: 10 })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
-// ─── Test Suite 2: audits.myConsultantQueue ───────────────────────────────────
+// ─── Test Suite 2: audit_assigned notification type ──────────────────────────
 
-describe("audits.myConsultantQueue — grouped by status", () => {
+describe("audits.submitDraft — audit_assigned notification type", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns pending/approved/rejected grouped for a consultant using linkedConsultantId", async () => {
-    vi.mocked(db.getUserById).mockResolvedValue(CONSULTANT_USER);
-    const pendingAudit = makeAudit({ id: 1, status: "pending" });
-    const approvedAudit = makeAudit({ id: 2, status: "approved" });
-    const rejectedAudit = makeAudit({ id: 3, status: "rejected" });
-    vi.mocked(db.getAuditsForConsultantAll).mockResolvedValue([
-      pendingAudit,
-      approvedAudit,
-      rejectedAudit,
-    ] as ReturnType<typeof makeAudit>[]);
-
-    const caller = appRouter.createCaller(makeCtx(CONSULTANT_USER));
-    const result = await caller.audits.myConsultantQueue();
-
-    // Should use linkedConsultantId=10 for the lookup
-    expect(db.getAuditsForConsultantAll).toHaveBeenCalledWith(CONSULTANT_USER.linkedConsultantId);
-    expect(result.pending).toHaveLength(1);
-    expect(result.approved).toHaveLength(1);
-    expect(result.rejected).toHaveLength(1);
-    expect(result.pending[0].id).toBe(1);
-    expect(result.approved[0].id).toBe(2);
-    expect(result.rejected[0].id).toBe(3);
-  });
-
-  it("returns empty groups for a clinician (non-consultant)", async () => {
+  it("sends an audit_assigned notification to the linked consultant user", async () => {
     vi.mocked(db.getUserById).mockResolvedValue(CLINICIAN_USER);
-
-    const caller = appRouter.createCaller(makeCtx(CLINICIAN_USER));
-    const result = await caller.audits.myConsultantQueue();
-
-    expect(result.pending).toHaveLength(0);
-    expect(result.approved).toHaveLength(0);
-    expect(result.rejected).toHaveLength(0);
-    expect(db.getAuditsForConsultantAll).not.toHaveBeenCalled();
-  });
-
-  it("excludes draft audits from the queue", async () => {
-    vi.mocked(db.getUserById).mockResolvedValue(CONSULTANT_USER);
-    // getAuditsForConsultantAll already filters out drafts at DB level; simulate that
-    vi.mocked(db.getAuditsForConsultantAll).mockResolvedValue([
-      makeAudit({ id: 1, status: "pending" }),
-    ] as ReturnType<typeof makeAudit>[]);
-
-    const caller = appRouter.createCaller(makeCtx(CONSULTANT_USER));
-    const result = await caller.audits.myConsultantQueue();
-
-    expect(result.pending).toHaveLength(1);
-    expect(result.approved).toHaveLength(0);
-    expect(result.rejected).toHaveLength(0);
-  });
-});
-
-// ─── Test Suite 3: audits.submitDraft — consultant notification ───────────────
-
-describe("audits.submitDraft — consultant in-app notification", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("sends a notification to the linked consultant user when supervisorId is set", async () => {
-    vi.mocked(db.getUserById).mockResolvedValue(CLINICIAN_USER);
-    const draftAudit = makeAudit({
-      id: 100,
-      status: "draft",
-      submittedById: 3,
-      supervisorId: 10,
-      supervisorName: "Dr Jane Smith",
-      auditObjectives: "Improve outcomes",
-      auditStandards: JSON.stringify([{ standard: "NICE", criteria: "C1", compliance: "100%", exceptions: "" }]),
-      dataCollectionMethodDetail: "Case note review",
-    });
+    const draftAudit = makeAudit({ status: "draft" });
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
     vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
-    // The linked consultant user account
     vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue(CONSULTANT_USER);
 
     const caller = appRouter.createCaller(makeCtx(CLINICIAN_USER));
-    const result = await caller.audits.submitDraft({ auditId: 100 });
+    await caller.audits.submitDraft({ auditId: 100 });
 
-    expect(result.success).toBe(true);
-    // Should have called getUserByLinkedConsultantId with supervisorId=10
-    expect(db.getUserByLinkedConsultantId).toHaveBeenCalledWith(10);
-    // Should have created a notification for the consultant user (id=2)
     const notifCalls = vi.mocked(db.createNotification).mock.calls;
     const consultantNotif = notifCalls.find(
       ([n]) => (n as { recipientId: number }).recipientId === CONSULTANT_USER.id
     );
     expect(consultantNotif).toBeDefined();
-    const notifPayload = consultantNotif![0] as { type: string; message: string };
-    expect(notifPayload.type).toBe("audit_assigned");
-    expect(notifPayload.message).toContain("REF-20260513-0001");
+    const payload = consultantNotif![0] as { type: string; message: string };
+    // Must be audit_assigned, not audit_submitted
+    expect(payload.type).toBe("audit_assigned");
+    expect(payload.message).toContain("REF-20260513-0001");
   });
 
-  it("does not send a consultant notification when no supervisorId is set", async () => {
+  it("sends audit_submitted (not audit_assigned) to the admin", async () => {
     vi.mocked(db.getUserById).mockResolvedValue(CLINICIAN_USER);
-    const draftAudit = makeAudit({
-      id: 101,
-      status: "draft",
-      submittedById: 3,
-      supervisorId: null,
-      auditObjectives: "Improve outcomes",
-      auditStandards: JSON.stringify([{ standard: "NICE", criteria: "C1", compliance: "100%", exceptions: "" }]),
-      dataCollectionMethodDetail: "Case note review",
-    });
+    const draftAudit = makeAudit({ status: "draft" });
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
     vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
+    vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue(CONSULTANT_USER);
 
     const caller = appRouter.createCaller(makeCtx(CLINICIAN_USER));
-    await caller.audits.submitDraft({ auditId: 101 });
+    await caller.audits.submitDraft({ auditId: 100 });
 
-    expect(db.getUserByLinkedConsultantId).not.toHaveBeenCalled();
-    // Only admin notification should have been sent
     const notifCalls = vi.mocked(db.createNotification).mock.calls;
-    expect(notifCalls).toHaveLength(1);
-    expect((notifCalls[0][0] as { recipientId: number }).recipientId).toBe(ADMIN_USER.id);
+    const adminNotif = notifCalls.find(
+      ([n]) => (n as { recipientId: number }).recipientId === ADMIN_USER.id
+    );
+    expect(adminNotif).toBeDefined();
+    const payload = adminNotif![0] as { type: string };
+    expect(payload.type).toBe("audit_submitted");
   });
 });

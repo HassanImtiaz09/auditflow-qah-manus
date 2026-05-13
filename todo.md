@@ -222,3 +222,26 @@
 - [x] Vitest: approveUser with linkedConsultantId saves correctly
 - [x] Vitest: myConsultantQueue returns correct audits for a consultant user
 - [x] Vitest: submit triggers in-app notification to the linked consultant user
+
+## Round 13 — Admin Re-link, Approval Queue Filter, audit_assigned Notification
+
+### Feature 1: Admin re-link / unlink in User Management
+- [x] Backend: add users.updateLinkedConsultant procedure (admin only) — accepts userId + linkedConsultantId (nullable), saves to DB
+- [x] Backend: add updateLinkedConsultant helper to db.ts
+- [x] Frontend: User Management table — add "Linked Consultant" column showing current link (or "—")
+- [x] Frontend: User Management — inline "Change…" button per consultant row opens a dialog with consultant dropdown + "Remove link" option
+
+### Feature 2: Approval Queue status filter
+- [x] Frontend: ApprovalQueue page — add Pending / Approved / Rejected / All tab bar at the top
+- [x] Backend: audits.myConsultantQueue returns all statuses; filtering is done client-side in ApprovalQueue
+- [x] Frontend: selected tab persists in URL query param (?status=pending) so page is bookmarkable
+
+### Feature 3: audit_assigned notification type
+- [x] Schema: add "audit_assigned" to the notifications type enum in drizzle/schema.ts; run db:push
+- [x] Backend: change the consultant notification in submitDraft and submit procedures from type "audit_submitted" to "audit_assigned"
+- [x] Frontend: notification dot colour for "audit_assigned" — use violet/purple to distinguish from blue (audit_submitted)
+- [x] Frontend: notification list — show a distinct ClipboardList icon and "New Audit Assigned" label for audit_assigned notifications
+
+### Tests
+- [x] Vitest: users.updateLinkedConsultant saves new linkedConsultantId and clears it on null
+- [x] Vitest: submitDraft sends audit_assigned (not audit_submitted) notification to consultant

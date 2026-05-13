@@ -165,7 +165,7 @@ export const notifications = mysqlTable("notifications", {
   recipientId: int("recipientId").notNull(),
   /** FK → users.id (the user who triggered the notification) */
   userId: int("userId").notNull(),
-  type: mysqlEnum("type", ["consultant_registered", "audit_submitted", "audit_reassigned", "audit_approved", "audit_rejected"]).notNull(),
+  type: mysqlEnum("type", ["consultant_registered", "audit_submitted", "audit_assigned", "audit_reassigned", "audit_approved", "audit_rejected"]).notNull(),
   message: text("message").notNull(),
   read: boolean("read").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

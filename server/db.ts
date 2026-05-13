@@ -142,6 +142,13 @@ export async function updateUserRole(id: number, auditRole: "clinician" | "consu
   await db.update(users).set({ auditRole }).where(eq(users.id, id));
 }
 
+/** Update (or clear) the linkedConsultantId for a user account */
+export async function updateLinkedConsultant(userId: number, linkedConsultantId: number | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ linkedConsultantId }).where(eq(users.id, userId));
+}
+
 // ─── Audit helpers ────────────────────────────────────────────────────────────
 
 export async function getAllAudits() {
