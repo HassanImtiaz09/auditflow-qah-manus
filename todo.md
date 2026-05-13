@@ -187,3 +187,10 @@
 - [x] Remove any path that allows final submission without passing through Step 2
 - [x] Step 2 must always be shown before Step 3 — cannot jump from Step 1 to Step 3
 - [x] Client-side validation on "Review and Submit" (Step 2 → Step 3 transition) shows inline errors, not a toast
+
+## Round 11 — Wizard UX Enhancements
+
+- [x] Auto-scroll to first inline error when Step 2 "Review and Submit" validation fails
+- [x] Step 2 progress indicator: "X of Y required fields filled" counter shown at top of Step 2
+- [x] Debounced auto-save: save draft automatically after 30 seconds of inactivity on any step
+- [x] Auto-save shows a subtle "Saving..." / "Saved" status indicator in the nav bar area

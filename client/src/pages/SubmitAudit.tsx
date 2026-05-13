@@ -1,5 +1,5 @@
 // SubmitAudit — Multi-Step Clinical Audit Registration Wizard
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -443,7 +443,7 @@ function Step2({ data, onChange, specialty, errors = {} }: { data: WizardData; o
             <Input type="date" value={data.auditEndDate} onChange={e => onChange({ auditEndDate: e.target.value })} className="mt-1 text-[13px]" />
           </div>
         </div>
-        <div>
+        <div {...(errors.auditObjectives ? { "data-error-field": "auditObjectives" } : {})}>
           <Label className="text-xs">Audit Objectives <span className="text-red-500">*</span></Label>
           <Textarea
             value={data.auditObjectives}
@@ -461,7 +461,10 @@ function Step2({ data, onChange, specialty, errors = {} }: { data: WizardData; o
       </div>
 
       {/* Audit Standards */}
-      <div className={`bg-card rounded-xl border p-6 shadow-sm${errors.auditStandards ? " border-red-400" : " border-border"}`}>
+      <div
+        className={`bg-card rounded-xl border p-6 shadow-sm${errors.auditStandards ? " border-red-400" : " border-border"}`}
+        {...(errors.auditStandards ? { "data-error-field": "auditStandards" } : {})}
+      >
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-semibold">Audit Standards <span className="text-red-500">*</span></h3>
@@ -564,7 +567,10 @@ function Step2({ data, onChange, specialty, errors = {} }: { data: WizardData; o
             <Input value={data.dataSourceOther} onChange={e => onChange({ dataSourceOther: e.target.value })} className="mt-1 text-[13px]" placeholder="Specify other data source" />
           </div>
         )}
-        <div className="mt-4">
+        <div
+          className="mt-4"
+          {...(errors.dataCollectionMethodDetail ? { "data-error-field": "dataCollectionMethodDetail" } : {})}
+        >
           <Label className="text-xs">Data Collection Method <span className="text-red-500">*</span></Label>
           <Textarea
             value={data.dataCollectionMethodDetail}
@@ -903,6 +909,12 @@ export default function SubmitAudit() {
   const [draftId, setDraftId] = useState<number | null>(urlDraftId);
   const [lastRef, setLastRef] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+  // Ref for auto-save debounce timer
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref to the first error element for auto-scroll
+  const firstErrorRef = useRef<HTMLDivElement | null>(null);
 
   // Load draft from server if draftId is in URL
   const { data: draftData } = trpc.audits.getDraft.useQuery(
@@ -975,6 +987,10 @@ export default function SubmitAudit() {
 
   const onChange = (patch: Partial<WizardData>) => setData(p => ({ ...p, ...patch }));
 
+  // ── Auto-save (silent, debounced 30 s) ────────────────────────────────────
+  // saveDraftSilent: same logic as saveDraft but shows auto-save status, not a toast
+  const saveDraftSilentRef = useRef<(() => void) | null>(null);
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const submitMutation = trpc.audits.submit.useMutation({
@@ -1020,6 +1036,38 @@ export default function SubmitAudit() {
     onError: (err) => toast.error(err.message),
   });
 
+  // Silent variants for auto-save (no toast, just status indicator)
+  const autoSaveUpdateMutation = trpc.audits.updateDraft.useMutation({
+    onSuccess: () => {
+      setAutoSaveStatus("saved");
+      utils.audits.myDrafts.invalidate();
+      setTimeout(() => setAutoSaveStatus("idle"), 3000);
+    },
+    onError: () => setAutoSaveStatus("idle"),
+  });
+
+  // Ref so autoSaveCreateMutation's onSuccess can call the update mutation with the latest data
+  const autoSaveStep2PayloadRef = useRef<ReturnType<typeof buildStep2Payload> | null>(null);
+
+  const autoSaveCreateMutation = trpc.audits.submit.useMutation({
+    onSuccess: (res) => {
+      const newId = (res.audit as { id: number }).id;
+      setDraftId(newId);
+      // Immediately follow up with a full Step 2 update so no data is lost
+      if (autoSaveStep2PayloadRef.current) {
+        autoSaveUpdateMutation.mutate({
+          auditId: newId,
+          ...autoSaveStep2PayloadRef.current,
+        });
+      } else {
+        setAutoSaveStatus("saved");
+        utils.audits.myDrafts.invalidate();
+        setTimeout(() => setAutoSaveStatus("idle"), 3000);
+      }
+    },
+    onError: () => setAutoSaveStatus("idle"),
+  });
+
   // ── Step 1 Validation ──────────────────────────────────────────────────────
 
   const validateStep1 = () => {
@@ -1037,6 +1085,67 @@ export default function SubmitAudit() {
   };
 
   // ── Save Draft ─────────────────────────────────────────────────────────────
+
+  // Silent auto-save (no toast)
+  const saveDraftSilent = useCallback(() => {
+    const draftIdSnapshot = draftId;
+    if (draftIdSnapshot) {
+      setAutoSaveStatus("saving");
+      autoSaveUpdateMutation.mutate({
+        auditId: draftIdSnapshot,
+        ...buildStep2Payload(),
+        topic: data.topic || undefined,
+        category: data.category || undefined,
+        clinicalSetting: data.clinicalSetting || undefined,
+        priority: (["Routine", "Standard", "High", "Urgent"] as const).includes(data.priority as "Routine") ? data.priority as "Routine" : undefined,
+        reaudit: data.reaudit || undefined,
+        dataCollectionPeriod: data.dataCollectionPeriod || undefined,
+        expectedSampleSize: data.expectedSampleSize || undefined,
+        collaborators: data.collaborators,
+        description: data.description || undefined,
+        supervisorId: data.supervisorId,
+      });
+    } else if (data.topic.trim().length >= 3) {
+      // Only create a new draft silently if there's enough content
+      setAutoSaveStatus("saving");
+      // Capture the current Step 2 payload so the create onSuccess can immediately update
+      autoSaveStep2PayloadRef.current = buildStep2Payload();
+      autoSaveCreateMutation.mutate({
+        category: data.category || "General ENT",
+        clinicalSetting: data.clinicalSetting || "Departmental",
+        priority: (["Routine", "Standard", "High", "Urgent"] as const).includes(data.priority as "Routine") ? data.priority as "Routine" : "Routine",
+        reaudit: data.reaudit || undefined,
+        topic: data.topic || "Untitled Draft",
+        dataCollectionPeriod: data.dataCollectionPeriod || undefined,
+        expectedSampleSize: data.expectedSampleSize || undefined,
+        collaborators: data.collaborators,
+        description: data.description || "Draft — no description yet.",
+        supervisorId: data.supervisorId ?? undefined,
+        isDraft: true,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftId, data, autoSaveUpdateMutation, autoSaveCreateMutation]);
+
+  // Keep a stable ref so the debounce timer can call the latest version
+  saveDraftSilentRef.current = saveDraftSilent;
+
+  // Debounced auto-save: reset 30 s timer on every data change (skip initial mount and draft loading)
+  const dataInitialized = useRef(false);
+  useEffect(() => {
+    if (!dataInitialized.current) {
+      dataInitialized.current = true;
+      return;
+    }
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      saveDraftSilentRef.current?.();
+    }, 30_000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const saveDraft = () => {
     if (draftId) {
@@ -1112,6 +1221,18 @@ export default function SubmitAudit() {
     if (!hasStandards) e.auditStandards = "Required — please add at least one audit standard";
     if (!data.dataCollectionMethodDetail.trim()) e.dataCollectionMethodDetail = "Required — please describe the data collection method";
     setErrors(e);
+    if (Object.keys(e).length > 0) {
+      // Scroll to first error after React re-renders the error messages
+      requestAnimationFrame(() => {
+        const firstError = document.querySelector<HTMLElement>("[data-error-field]");
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+          // Focus the field if it's focusable
+          const focusable = firstError.querySelector<HTMLElement>("textarea, input");
+          focusable?.focus({ preventScroll: true });
+        }
+      });
+    }
     return Object.keys(e).length === 0;
   };
 
@@ -1157,7 +1278,7 @@ export default function SubmitAudit() {
     }
   };
 
-  const isBusy = submitMutation.isPending || submitDraftMutation.isPending || updateDraftMutation.isPending || createDraftMutation.isPending;
+  const isBusy = submitMutation.isPending || submitDraftMutation.isPending || updateDraftMutation.isPending || createDraftMutation.isPending || autoSaveUpdateMutation.isPending || autoSaveCreateMutation.isPending;
 
   // ── Success Screen ─────────────────────────────────────────────────────────
 
@@ -1191,6 +1312,44 @@ export default function SubmitAudit() {
       </div>
 
       <StepIndicator step={step} />
+
+      {/* Step 2 progress indicator */}
+      {step === 2 && (() => {
+        const requiredFields = [
+          { key: "auditObjectives", label: "Audit Objectives", filled: data.auditObjectives.trim().length > 0 },
+          { key: "auditStandards", label: "Audit Standards", filled: data.auditStandards.some(s => s.standard.trim().length > 0) },
+          { key: "dataCollectionMethodDetail", label: "Data Collection Method", filled: data.dataCollectionMethodDetail.trim().length > 0 },
+        ];
+        const filledCount = requiredFields.filter(f => f.filled).length;
+        const total = requiredFields.length;
+        const allDone = filledCount === total;
+        return (
+          <div className={`mb-4 flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs border ${
+            allDone ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <div className="flex gap-1.5 items-center">
+              {requiredFields.map(f => (
+                <div
+                  key={f.key}
+                  title={f.label}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    f.filled ? "bg-emerald-500" : "bg-amber-400"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="font-medium">
+              {filledCount} of {total} required fields filled
+            </span>
+            {!allDone && (
+              <span className="text-amber-700">
+                — complete {requiredFields.filter(f => !f.filled).map(f => f.label).join(", ")} to continue
+              </span>
+            )}
+            {allDone && <span className="text-emerald-700">— ready to review</span>}
+          </div>
+        );
+      })()}
 
       {step === 1 && <Step1 data={data} onChange={onChange} errors={errors} consultants={consultants} />}
       {step === 2 && (
@@ -1227,11 +1386,20 @@ export default function SubmitAudit() {
 
       {/* Navigation */}
       <div className="flex items-center justify-between mt-8 pt-4 border-t border-border">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
           {step > 1 && (
             <Button type="button" variant="outline" onClick={() => setStep(s => (s - 1) as 1 | 2 | 3)}>
               <ChevronLeft className="w-4 h-4 mr-1" />Back
             </Button>
+          )}
+          {/* Auto-save status */}
+          {autoSaveStatus === "saving" && (
+            <span className="text-xs text-muted-foreground animate-pulse">Saving…</span>
+          )}
+          {autoSaveStatus === "saved" && (
+            <span className="text-xs text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />Saved automatically
+            </span>
           )}
         </div>
         <div className="flex gap-2">
