@@ -885,6 +885,7 @@ export default function SubmitAudit() {
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftId, setDraftId] = useState<number | null>(urlDraftId);
   const [lastRef, setLastRef] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Load draft from server if draftId is in URL
   const { data: draftData } = trpc.audits.getDraft.useQuery(
@@ -966,7 +967,10 @@ export default function SubmitAudit() {
       utils.audits.myDrafts.invalidate();
       utils.audits.mySubmissions.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      setSubmitError(err.message);
+      toast.error(err.message);
+    },
   });
 
   const submitDraftMutation = trpc.audits.submitDraft.useMutation({
@@ -976,7 +980,10 @@ export default function SubmitAudit() {
       utils.audits.myDrafts.invalidate();
       utils.audits.mySubmissions.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      setSubmitError(err.message);
+      toast.error(err.message);
+    },
   });
 
   const updateDraftMutation = trpc.audits.updateDraft.useMutation({
@@ -1081,7 +1088,17 @@ export default function SubmitAudit() {
 
   // ── Final Submit ───────────────────────────────────────────────────────────
 
+  const validateStep2 = () => {
+    const missing: string[] = [];
+    if (!data.auditObjectives.trim()) missing.push("Audit Objectives");
+    const hasStandards = data.auditStandards.some(s => s.standard && s.standard.trim().length > 0);
+    if (!hasStandards) missing.push("Audit Standards (at least one row)");
+    if (!data.dataCollectionMethodDetail.trim()) missing.push("Data Collection Method");
+    return missing;
+  };
+
   const finalSubmit = () => {
+    setSubmitError(null);
     if (draftId) {
       // First save Step 2 data to draft, then submit
       updateDraftMutation.mutate(
@@ -1114,6 +1131,10 @@ export default function SubmitAudit() {
         collaborators: data.collaborators,
         description: data.description,
         supervisorId: data.supervisorId ?? undefined,
+        // Step 2 fields
+        auditObjectives: data.auditObjectives || undefined,
+        auditStandards: data.auditStandards ? JSON.stringify(data.auditStandards) : undefined,
+        dataCollectionMethodDetail: data.dataCollectionMethodDetail || undefined,
       });
     }
   };
@@ -1165,7 +1186,25 @@ export default function SubmitAudit() {
           })()}
         />
       )}
-      {step === 3 && <Step3 data={data} consultants={consultants} onEdit={(s) => setStep(s)} />}
+      {step === 3 && (
+        <>
+          {submitError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+              <div className="shrink-0 mt-0.5 text-red-500">⚠</div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Submission blocked</p>
+                <p className="text-xs text-red-700 mt-0.5">{submitError}</p>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-red-600 underline shrink-0"
+                onClick={() => { setSubmitError(null); setStep(2); }}
+              >Go back to fix</button>
+            </div>
+          )}
+          <Step3 data={data} consultants={consultants} onEdit={(s) => { setSubmitError(null); setStep(s); }} />
+        </>
+      )}
 
       {/* Navigation */}
       <div className="flex items-center justify-between mt-8 pt-4 border-t border-border">
@@ -1185,7 +1224,15 @@ export default function SubmitAudit() {
               type="button"
               onClick={() => {
                 if (step === 1 && !validateStep1()) return;
+                if (step === 2) {
+                  const missing = validateStep2();
+                  if (missing.length > 0) {
+                    toast.error(`Please complete: ${missing.join(", ")}`);
+                    return;
+                  }
+                }
                 setErrors({});
+                setSubmitError(null);
                 setStep(s => (s + 1) as 2 | 3);
               }}
               disabled={isBusy}

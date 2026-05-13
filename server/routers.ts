@@ -421,6 +421,33 @@ const auditRouter = router({
       if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Audit is not a draft." });
       if (!audit.topic || audit.topic.length < 3) throw new TRPCError({ code: "BAD_REQUEST", message: "Audit title is required before submitting." });
 
+      // ── Step 2 validation (only on final submit, not draft saves) ──
+      const validationErrors: string[] = [];
+
+      if (!audit.auditObjectives || audit.auditObjectives.trim().length === 0) {
+        validationErrors.push("Audit Objectives");
+      }
+
+      const parsedStandards = (() => {
+        try { return audit.auditStandards ? JSON.parse(audit.auditStandards) : []; }
+        catch { return []; }
+      })();
+      if (!Array.isArray(parsedStandards) || parsedStandards.length === 0) {
+        validationErrors.push("Audit Standards (at least one row required)");
+      }
+
+      if (!audit.dataCollectionMethodDetail || audit.dataCollectionMethodDetail.trim().length === 0) {
+        validationErrors.push("Data Collection Method");
+      }
+
+      if (validationErrors.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Please complete the following required fields before submitting: ${validationErrors.join(", ")}.`,
+          cause: { fields: validationErrors },
+        });
+      }
+
       await updateAudit(input.auditId, { status: "pending", submittedAt: new Date() });
 
       const actor = await getUserById(ctx.user.id);
@@ -460,11 +487,33 @@ const auditRouter = router({
         description: z.string().min(10),
         supervisorId: z.number().optional(),
         isDraft: z.boolean().optional(),
+        // Step 2 fields (optional — validated on final submit)
+        auditObjectives: z.string().optional(),
+        auditStandards: z.string().optional(),
+        dataCollectionMethodDetail: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const user = await getUserById(ctx.user.id);
       if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Step 2 validation — only enforced on final submission (not draft saves)
+      if (!input.isDraft) {
+        const missing: string[] = [];
+        if (!input.auditObjectives?.trim()) missing.push("Audit Objectives");
+        const standards = input.auditStandards ? JSON.parse(input.auditStandards) : [];
+        if (!Array.isArray(standards) || !standards.some((s: { standard?: string }) => s.standard?.trim())) {
+          missing.push("Audit Standards (at least one row required)");
+        }
+        if (!input.dataCollectionMethodDetail?.trim()) missing.push("Data Collection Method");
+        if (missing.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Please complete the following before submitting: ${missing.join(", ")}`,
+            cause: { fields: missing },
+          });
+        }
+      }
 
       const total = await countAudits();
       const now = new Date();

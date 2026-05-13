@@ -64,15 +64,15 @@ const MOCK_DRAFT = {
   supportRequired: "[]",
   dataSource: "[]",
   resultsPresentation: "[]",
-  auditStandards: "[]",
+  auditStandards: JSON.stringify([{ standard: "NICE CG123", criteria: "All patients", compliance: "95%", exceptions: "" }]),
   dataCollectionPeriod: null,
   expectedSampleSize: null,
-  auditObjectives: null,
+  auditObjectives: "To assess compliance with NICE guidance on tonsillectomy.",
   whoInvolved: null,
   evidenceBase: null,
   stakeholders: null,
   stakeholdersInformed: false,
-  dataCollectionMethodDetail: null,
+  dataCollectionMethodDetail: "Retrospective review of clinical notes.",
   dataCollectionTiming: null,
   dataCollectedBy: null,
   samplingMethodDetail: null,
@@ -244,5 +244,70 @@ describe("audits.submitDraft", () => {
     const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
     await caller.audits.submitDraft({ auditId: 1 });
     expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ type: "audit_submitted" }));
+  });
+
+  // ── Step 2 field validation ──
+
+  it("throws BAD_REQUEST when auditObjectives is blank", async () => {
+    const draftWithObjectives = {
+      ...MOCK_DRAFT,
+      auditObjectives: "",
+      auditStandards: JSON.stringify([{ standard: "NICE CG123", criteria: "All patients", compliance: "95%", exceptions: "" }]),
+      dataCollectionMethodDetail: "Retrospective notes review",
+    };
+    vi.mocked(getAuditById).mockResolvedValue(draftWithObjectives as any);
+    const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
+    await expect(caller.audits.submitDraft({ auditId: 1 })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Audit Objectives"),
+    });
+  });
+
+  it("throws BAD_REQUEST when auditStandards is an empty array", async () => {
+    const draftNoStandards = {
+      ...MOCK_DRAFT,
+      auditObjectives: "To assess compliance with NICE guidance.",
+      auditStandards: JSON.stringify([]),
+      dataCollectionMethodDetail: "Retrospective notes review",
+    };
+    vi.mocked(getAuditById).mockResolvedValue(draftNoStandards as any);
+    const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
+    await expect(caller.audits.submitDraft({ auditId: 1 })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Audit Standards"),
+    });
+  });
+
+  it("throws BAD_REQUEST when dataCollectionMethodDetail is blank", async () => {
+    const draftNoMethod = {
+      ...MOCK_DRAFT,
+      auditObjectives: "To assess compliance with NICE guidance.",
+      auditStandards: JSON.stringify([{ standard: "NICE CG123", criteria: "All patients", compliance: "95%", exceptions: "" }]),
+      dataCollectionMethodDetail: "",
+    };
+    vi.mocked(getAuditById).mockResolvedValue(draftNoMethod as any);
+    const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
+    await expect(caller.audits.submitDraft({ auditId: 1 })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Data Collection Method"),
+    });
+  });
+
+  it("passes validation when all required Step 2 fields are present", async () => {
+    const completeDraft = {
+      ...MOCK_DRAFT,
+      auditObjectives: "To assess compliance with NICE guidance.",
+      auditStandards: JSON.stringify([{ standard: "NICE CG123", criteria: "All patients", compliance: "95%", exceptions: "" }]),
+      dataCollectionMethodDetail: "Retrospective notes review",
+    };
+    vi.mocked(getAuditById).mockResolvedValue(completeDraft as any);
+    vi.mocked(getUserById).mockResolvedValue(MOCK_ACTOR as any);
+    vi.mocked(updateAudit).mockResolvedValue(undefined);
+    vi.mocked(createAuditEvent).mockResolvedValue(undefined);
+    vi.mocked(getAdminUser).mockResolvedValue(null as any);
+
+    const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
+    const result = await caller.audits.submitDraft({ auditId: 1 });
+    expect(result.success).toBe(true);
   });
 });

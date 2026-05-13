@@ -413,6 +413,9 @@ describe("audits.submit — audit trail recording", () => {
       topic: "Hearing Aid Follow-up",
       description: "Audit of hearing aid follow-up protocols in ENT outpatient",
       isDraft: false,
+      auditObjectives: "To assess compliance with hearing aid follow-up protocols.",
+      auditStandards: JSON.stringify([{ standard: "NICE NG98", criteria: "All patients", compliance: "90%", exceptions: "" }]),
+      dataCollectionMethodDetail: "Retrospective review of patient records.",
     });
 
     expect(createAuditEvent).toHaveBeenCalledWith(

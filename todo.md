@@ -166,3 +166,15 @@
 ### Tests
 - [x] Vitest tests for audits.standardPresets procedure
 - [x] Vitest tests for audits.searchByRef procedure
+
+## Round 9 — Server-side Step 2 Validation
+
+- [x] Backend — submit procedure: reject if auditObjectives is blank
+- [x] Backend — submit procedure: reject if auditStandards JSON is empty array or missing
+- [x] Backend — submit procedure: reject if dataCollectionMethod is blank
+- [x] Backend — submitDraft procedure: same three validations (only on final submit, not on draft save)
+- [x] Backend — return structured field-level error messages (TRPCError BAD_REQUEST with field names)
+- [x] Frontend — Step 3: show validation error banner listing missing fields when submit fails
+- [x] Frontend — Step 3: "Go back to fix" button jumps to the relevant step
+- [x] Frontend — Step 2: client-side pre-validation blocks advancing to Step 3 with toast listing missing fields
+- [x] Vitest tests for submitDraft validation (missing objectives, empty standards, missing data collection, passes when all present)
