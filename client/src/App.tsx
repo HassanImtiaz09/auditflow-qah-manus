@@ -26,6 +26,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Notifications from "./pages/Notifications";
+import PendingApproval from "./pages/PendingApproval";
 import { trpc } from "./lib/trpc";
 
 function AppRouter() {
@@ -77,6 +78,15 @@ function AppRouter() {
         <Route component={Login} />
       </Switch>
     );
+  }
+
+  // Authenticated — pending consultant: show approval-pending page
+  const isPendingConsultant =
+    currentUser.auditRole === "consultant" &&
+    (!currentUser.approved || !currentUser.roleApproved);
+
+  if (isPendingConsultant) {
+    return <PendingApproval />;
   }
 
   // Authenticated - show the app

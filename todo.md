@@ -255,3 +255,15 @@
 - [x] Dashboard: polished welcome banner with logo + name, improved StatCard with rounded-xl icons and hover shadow
 - [x] Global: refined border-radius token (0.625rem), added shadow-card CSS variable, improved card hover shadows
 - [x] Favicon: updated in index.html with CDN logo URL (webp + apple-touch-icon)
+
+## Round 15 — Consultant Pending Login + Admin Notification
+
+- [x] Backend: allow users with status=pending to log in (remove the pending-blocks-login guard)
+- [x] Backend: auth.me / currentUser returns approvalStatus so frontend can detect pending state (currentUser already returns full user object)
+- [x] Backend: on consultant registration, send in-app notification to admin (type: consultant_registered)
+- [x] Backend: on consultant registration, send push notification to admin via notifyOwner (Manus notification service)
+- [x] Frontend: App.tsx — if logged-in user is pending consultant, show PendingApproval page instead of dashboard
+- [x] Frontend: PendingApproval page — shows logo, name, "Your account is awaiting admin approval" message, sign-out button
+- [x] Frontend: Register.tsx — existing success card already shows Back to Login button; user can log in immediately after registration
+- [x] Vitest: pending user can log in successfully (credential check passes, no FORBIDDEN guard)
+- [x] Vitest: consultant registration triggers admin notification

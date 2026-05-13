@@ -68,6 +68,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { getStandardPresets } from "../shared/auditStandards";
+import { notifyOwner } from "./_core/notification";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -121,12 +122,23 @@ const authRouter = router({
       if (isConsultant) {
         const admin = await getAdminUser();
         if (admin) {
+          // In-app notification for admin
           await createNotification({
             recipientId: admin.id,
             userId: newUser.id,
             type: "consultant_registered",
             message: `${input.title ? input.title + " " : ""}${input.fullName} (${input.grade}) has registered and is requesting consultant access.`,
           });
+        }
+        // Push notification to the project owner (admin email via Manus notification service)
+        try {
+          await notifyOwner({
+            title: "New Consultant Registration — Action Required",
+            content: `${input.title ? input.title + " " : ""}${input.fullName} (${input.grade}, ${input.email}) has registered for a consultant account on AuditFlow ENT QAH and is awaiting your approval.\n\nPlease log in to the User Approvals page to review and approve or reject this request.`,
+          });
+        } catch {
+          // Non-fatal: in-app notification already sent above
+          console.warn("[Register] Failed to send owner push notification for consultant registration");
         }
       }
 
@@ -144,14 +156,8 @@ const authRouter = router({
       const valid = await bcrypt.compare(input.password, user.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password." });
 
-      if (!user.approved) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your account is pending administrator approval." });
-      }
-      if (user.auditRole === "consultant" && !user.roleApproved) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your consultant role is awaiting administrator approval." });
-      }
-
-      
+      // Pending consultants are allowed to log in — they see a pending-approval
+      // banner in the app until the admin approves their account.
       const token = await signNhsToken(user.openId);
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(NHS_COOKIE, token, { ...cookieOptions, maxAge: 60 * 60 * 24 * 7 });
