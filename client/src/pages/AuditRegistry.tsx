@@ -1,5 +1,6 @@
 // AuditRegistry -- with expandable audit trail history panel
 import { useState } from "react";
+import CommentThread from "@/components/shared/CommentThread";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Input } from "@/components/ui/input";
@@ -545,11 +546,17 @@ export default function AuditRegistry() {
                       </td>
                     )}
                   </tr>
-                  {/* Expandable history panel */}
+                  {/* Expandable history panel + comment thread */}
                   {expandedId === audit.id && (
                     <tr key={`history-${audit.id}`} className="border-t border-border">
                       <td colSpan={isAdmin ? 8 : 7} className="p-0">
                         <AuditHistoryPanel auditId={audit.id} />
+                        <CommentThread
+                          auditId={audit.id}
+                          submittedById={audit.submittedById}
+                          supervisorId={audit.supervisorId}
+                          currentUser={currentUser}
+                        />
                       </td>
                     </tr>
                   )}

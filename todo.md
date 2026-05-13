@@ -60,3 +60,20 @@
 - [x] Submitter notification on decide — when an audit is approved or rejected, notify the submitter via the notifications table
 - [x] PDF export with audit trail — add a "Export PDF" button in Audit Registry that generates a per-audit PDF including full audit trail
 - [x] Vitest tests for Round 5 backend changes (reassign notification, decide notification)
+
+## New Features (Round 6)
+
+- [x] Comment thread — add auditComments table to schema (auditId, authorId, authorName, authorRole, body, createdAt)
+- [x] Comment thread — migrate DB with pnpm db:push
+- [x] Comment thread — add DB helpers: createAuditComment, getAuditComments
+- [x] Comment thread — tRPC procedures: audits.addComment (protected, submitter/supervisor/admin only), audits.comments (protected)
+- [x] Comment thread — record each new comment as an audit trail event (eventType: "comment")
+- [x] Comment thread — embed CommentThread component in Audit Registry expanded row (below history timeline)
+- [x] Comment thread — embed CommentThread component in Check Status page (submitter view)
+- [x] Comment thread — real-time optimistic update on post (new comment appears immediately)
+- [x] Dashboard home — replace Home.tsx landing with personal dashboard
+- [x] Dashboard home — show recent submissions card (last 5 audits by current user, with status badge)
+- [x] Dashboard home — show unread notifications card (up to 5, with mark-all-read)
+- [x] Dashboard home — show quick stats (total submitted, pending, approved, rejected)
+- [x] Dashboard home — CTA button linking to Submit Audit form
+- [x] Vitest tests for audits.addComment and audits.comments procedures

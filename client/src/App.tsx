@@ -8,6 +8,7 @@ import { Route, Switch, useLocation } from "wouter";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./components/layout/AppLayout";
+import Dashboard from "./pages/Dashboard";
 import SubmitAudit from "./pages/SubmitAudit";
 import CheckStatus from "./pages/CheckStatus";
 import ApprovalQueue from "./pages/ApprovalQueue";
@@ -85,8 +86,9 @@ function AppRouter() {
   return (
     <AppLayout user={currentUser} onLogout={handleLogout}>
       <Switch>
-        <Route path="/" component={SubmitAudit} />
-        <Route path="/login" component={SubmitAudit} />
+        <Route path="/" component={Dashboard} />
+        <Route path="/login" component={Dashboard} />
+        <Route path="/submit" component={SubmitAudit} />
         <Route path="/check-status" component={CheckStatus} />
         <Route path="/approval-queue" component={ApprovalQueue} />
         <Route path="/registry" component={AuditRegistry} />

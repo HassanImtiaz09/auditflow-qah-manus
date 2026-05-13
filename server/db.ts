@@ -1,6 +1,6 @@
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { auditEvents, audits, InsertAuditEvent, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
+import { auditComments, auditEvents, audits, InsertAuditComment, InsertAuditEvent, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -265,4 +265,30 @@ export async function getAuditEvents(auditId: number) {
     .from(auditEvents)
     .where(eq(auditEvents.auditId, auditId))
     .orderBy(auditEvents.createdAt);
+}
+
+// ─── Audit Comment helpers (Q&A Thread) ──────────────────────────────────────
+
+export async function createAuditComment(data: InsertAuditComment) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(auditComments).values(data);
+  // Return the newly inserted comment
+  const rows = await db
+    .select()
+    .from(auditComments)
+    .where(eq(auditComments.auditId, data.auditId))
+    .orderBy(desc(auditComments.createdAt))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getAuditComments(auditId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(auditComments)
+    .where(eq(auditComments.auditId, auditId))
+    .orderBy(auditComments.createdAt);
 }

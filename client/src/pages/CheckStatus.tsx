@@ -6,12 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Search, Clock, CheckCircle2, XCircle, FileText } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
 import PriorityBadge from "@/components/shared/PriorityBadge";
+import CommentThread from "@/components/shared/CommentThread";
 import { format } from "date-fns";
 import { trpc } from "@/lib/trpc";
 
 export default function CheckStatus() {
   const [refInput, setRefInput] = useState("");
   const [searchRef, setSearchRef] = useState<string | null>(null);
+  const { data: currentUser } = trpc.auth.currentUser.useQuery();
   const { data: audit, isLoading, error } = trpc.audits.byRef.useQuery(
     { ref: searchRef! },
     { enabled: !!searchRef }
@@ -142,6 +144,14 @@ export default function CheckStatus() {
               </div>
             </div>
           )}
+
+          {/* Comment thread — visible to submitter, supervisor, and admins */}
+          <CommentThread
+            auditId={audit.id}
+            submittedById={audit.submittedById}
+            supervisorId={audit.supervisorId}
+            currentUser={currentUser}
+          />
         </div>
       )}
     </div>

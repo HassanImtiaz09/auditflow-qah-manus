@@ -55,6 +55,8 @@ import {
   updateUserPassword,
   createAuditEvent,
   getAuditEvents,
+  createAuditComment,
+  getAuditComments,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -464,6 +466,74 @@ const auditRouter = router({
     );
     return withHistory;
   }),
+
+  /** Returns the current user's own submitted audits (all statuses, newest first) */
+  mySubmissions: protectedProcedure.query(async ({ ctx }) => {
+    const all = await getAllAudits();
+    return all
+      .filter((a) => a.submittedById === ctx.user.id)
+      .map((a) => ({
+        ...a,
+        collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+      }));
+  }),
+
+  /** Fetch all comments for a given audit */
+  comments: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const actor = await getUserById(ctx.user.id);
+      if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      // Only the submitter, assigned supervisor, or admin can read comments
+      const isAllowed =
+        actor.auditRole === "admin" ||
+        audit.submittedById === actor.id ||
+        audit.supervisorId === actor.id;
+      if (!isAllowed) throw new TRPCError({ code: "FORBIDDEN" });
+      return getAuditComments(input.auditId);
+    }),
+
+  /** Post a new comment on an audit */
+  addComment: protectedProcedure
+    .input(
+      z.object({
+        auditId: z.number(),
+        body: z.string().min(1).max(2000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const actor = await getUserById(ctx.user.id);
+      if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      // Only the submitter, assigned supervisor, or admin can comment
+      const isAllowed =
+        actor.auditRole === "admin" ||
+        audit.submittedById === actor.id ||
+        audit.supervisorId === actor.id;
+      if (!isAllowed) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const comment = await createAuditComment({
+        auditId: input.auditId,
+        authorId: actor.id,
+        authorName: actor.fullName ?? actor.name ?? actor.email ?? "Unknown",
+        authorRole: actor.auditRole,
+        body: input.body,
+      });
+
+      // Record in audit trail
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: actor.id,
+        actorName: actor.fullName ?? actor.name ?? actor.email ?? "Unknown",
+        eventType: "comment",
+        detail: input.body.length > 120 ? input.body.slice(0, 120) + "…" : input.body,
+      });
+
+      return comment;
+    }),
 });
 
 // ─── Users Router ─────────────────────────────────────────────────────────────

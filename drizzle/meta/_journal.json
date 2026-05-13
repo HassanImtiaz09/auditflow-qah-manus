@@ -36,6 +36,20 @@
       "when": 1778688026947,
       "tag": "0004_light_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1778690323366,
+      "tag": "0005_wealthy_chamber",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1778690390623,
+      "tag": "0006_ambiguous_gideon",
+      "breakpoints": true
     }
   ]
 }

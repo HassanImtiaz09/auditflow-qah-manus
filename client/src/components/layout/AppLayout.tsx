@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
+  LayoutDashboard,
   ClipboardList,
   Search,
   CheckSquare,
@@ -42,9 +43,14 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
+    items: [
+      { path: "/",              label: "Dashboard",      icon: LayoutDashboard },
+    ],
+  },
+  {
     label: "Submissions",
     items: [
-      { path: "/",              label: "Submit Audit",   icon: ClipboardList },
+      { path: "/submit",        label: "Submit Audit",   icon: ClipboardList },
       { path: "/check-status",  label: "Check Status",   icon: Search },
     ],
   },

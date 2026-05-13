@@ -1,0 +1,1 @@
+ALTER TABLE `auditEvents` MODIFY COLUMN `eventType` enum('submitted','approved','rejected','reassigned','archived','unarchived','draft_saved','comment') NOT NULL;

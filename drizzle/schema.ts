@@ -144,6 +144,7 @@ export const auditEvents = mysqlTable("auditEvents", {
     "archived",
     "unarchived",
     "draft_saved",
+    "comment",
   ]).notNull(),
   /** Optional human-readable detail (e.g. decision note, new supervisor name) */
   detail: text("detail"),
@@ -152,3 +153,23 @@ export const auditEvents = mysqlTable("auditEvents", {
 
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type InsertAuditEvent = typeof auditEvents.$inferInsert;
+
+// --- Audit Comments (Q&A Thread) ---------------------------------------------
+
+export const auditComments = mysqlTable("auditComments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK -> audits.id */
+  auditId: int("auditId").notNull(),
+  /** FK -> users.id */
+  authorId: int("authorId").notNull(),
+  /** Denormalised author name for display */
+  authorName: varchar("authorName", { length: 255 }).notNull(),
+  /** AuditFlow role of the author at time of posting */
+  authorRole: mysqlEnum("authorRole", ["clinician", "consultant", "admin"]).notNull(),
+  /** Comment body (plain text, max 2000 chars) */
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditComment = typeof auditComments.$inferSelect;
+export type InsertAuditComment = typeof auditComments.$inferInsert;
