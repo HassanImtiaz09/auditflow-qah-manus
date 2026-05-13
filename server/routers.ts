@@ -33,6 +33,7 @@ import {
   getAllUsers,
   getAdminUser,
   getApprovedConsultants,
+  getAuditById,
   getAuditByRef,
   getAuditsForConsultant,
   getPendingUsers,
@@ -48,6 +49,10 @@ import {
   updateUserRole,
   upsertUser,
   countAudits,
+  createPasswordResetToken,
+  getPasswordResetToken,
+  markPasswordResetTokenUsed,
+  updateUserPassword,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -150,6 +155,51 @@ const authRouter = router({
           role: user.role,
         },
       };
+    }),
+
+  requestPasswordReset: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      // Always return success to prevent email enumeration
+      const user = await getUserByEmail(input.email);
+      if (!user) return { success: true };
+
+      // Generate a cryptographically secure random token
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await createPasswordResetToken(user.id, token, expiresAt);
+
+      // Return the reset token so the admin can share the link with the user
+      // (No external email service is configured; the link is shown on-screen)
+      return { success: true, token };
+    }),
+
+  resetPassword: publicProcedure
+    .input(
+      z.object({
+        token: z.string().min(1),
+        newPassword: z.string().min(8),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const record = await getPasswordResetToken(input.token);
+      if (!record) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired reset link." });
+      }
+      if (record.used) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This reset link has already been used." });
+      }
+      if (new Date() > record.expiresAt) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This reset link has expired. Please request a new one." });
+      }
+
+      const passwordHash = await bcrypt.hash(input.newPassword, 12);
+      await updateUserPassword(record.userId, passwordHash);
+      await markPasswordResetTokenUsed(record.id);
+
+      return { success: true };
     }),
 
   currentUser: publicProcedure.query(async ({ ctx }) => {
@@ -270,6 +320,13 @@ const auditRouter = router({
       const user = await getUserById(ctx.user.id);
       if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
         throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      // Consultants may only decide on audits explicitly assigned to them as supervisor
+      if (user.auditRole === "consultant") {
+        const audit = await getAuditById(input.auditId);
+        if (!audit || audit.supervisorId !== user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You are not the assigned supervisor for this audit." });
+        }
       }
       await updateAudit(input.auditId, {
         status: input.decision,

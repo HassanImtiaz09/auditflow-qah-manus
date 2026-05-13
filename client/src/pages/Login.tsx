@@ -1,4 +1,4 @@
-// AuditFlow QAH — Login Page (tRPC + password auth)
+// AuditFlow QAH - Login Page (tRPC + password auth)
 import { useState } from "react";
 import { Link } from "wouter";
 import { ClipboardList, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -59,7 +59,12 @@ export default function Login() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Input
                   id="password"
@@ -72,6 +77,7 @@ export default function Login() {
                 />
                 <button
                   type="button"
+                  onClick={() => setShowPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

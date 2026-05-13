@@ -1,6 +1,6 @@
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { audits, InsertUser, notifications, users } from "../drizzle/schema";
+import { audits, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -211,4 +211,40 @@ export async function markAllNotificationsRead(recipientId: number) {
     .update(notifications)
     .set({ read: true })
     .where(and(eq(notifications.recipientId, recipientId), eq(notifications.read, false)));
+}
+
+// ─── Password Reset Token helpers ────────────────────────────────────────────
+
+export async function createPasswordResetToken(userId: number, token: string, expiresAt: Date) {
+  const db = await getDb();
+  if (!db) return;
+  // Invalidate any existing unused tokens for this user
+  await db
+    .update(passwordResetTokens)
+    .set({ used: true })
+    .where(and(eq(passwordResetTokens.userId, userId), eq(passwordResetTokens.used, false)));
+  await db.insert(passwordResetTokens).values({ userId, token, expiresAt });
+}
+
+export async function getPasswordResetToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.token, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function markPasswordResetTokenUsed(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, id));
+}
+
+export async function updateUserPassword(userId: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }

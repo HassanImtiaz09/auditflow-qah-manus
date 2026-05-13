@@ -15,6 +15,13 @@
       "when": 1778639873812,
       "tag": "0001_wet_juggernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1778683215305,
+      "tag": "0002_long_vance_astro",
+      "breakpoints": true
     }
   ]
 }

@@ -20,3 +20,12 @@
 - [x] Sign out functionality
 - [x] Session cookie aligned with COOKIE_NAME constant (nhs_audit_session)
 - [x] Vitest tests passing (auth.logout test)
+
+## New Features (Round 2)
+
+- [x] Audit visibility scoping — enforce supervisor ownership check in decide mutation (consultant can only approve/reject audits assigned to them)
+- [x] Password reset flow — add passwordResetTokens table to schema (db:push applied)
+- [x] Password reset flow — add requestReset and resetPassword tRPC procedures
+- [x] Password reset flow — add Forgot password? link on login page
+- [x] Password reset flow — build /forgot-password and /reset-password pages
+- [x] Password reset flow — write vitest tests for reset procedures (6 tests passing)
