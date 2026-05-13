@@ -1,88 +1,37 @@
-// AuditFlow QAH — Login Page
-// Design: NHS Clinical Precision — clean card on off-white canvas, navy accents
-// Simulates login by matching email against registered users (no password in demo)
-
+// AuditFlow QAH — Login Page (tRPC + password auth)
 import { useState } from "react";
-import { useLocation } from "wouter";
-import { ClipboardList, LogIn, Clock } from "lucide-react";
+import { Link } from "wouter";
+import { ClipboardList, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { getAllUsers, setCurrentUser } from "@/lib/store";
+import { trpc } from "@/lib/trpc";
 
-interface Props {
-  onLogin: () => void;
-}
-
-export default function Login({ onLogin }: Props) {
-  const [, navigate] = useLocation();
+export default function Login() {
   const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [pendingConsultant, setPendingConsultant] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+
+  const utils = trpc.useUtils();
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      utils.auth.currentUser.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      toast.error("Please enter your email address.");
-      return;
-    }
-
-    setSubmitting(true);
-    const users = getAllUsers();
-    const found = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-
-    if (!found) {
-      toast.error("No account found with that email. Please register first.");
-      setSubmitting(false);
-      return;
-    }
-
-    // Consultant awaiting role approval
-    if (found.role === "consultant" && !found.role_approved) {
-      setPendingConsultant(true);
-      setSubmitting(false);
-      return;
-    }
-
-    // Approved user — log in
-    setCurrentUser(found);
-    toast.success(`Welcome back, ${found.full_name}!`);
-    onLogin();
-    navigate("/");
-    setSubmitting(false);
+    loginMutation.mutate({ email, password });
   };
-
-  if (pendingConsultant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-2xl shadow-sm border border-border p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-              <Clock className="w-8 h-8 text-amber-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Awaiting Approval</h2>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              Your consultant account is pending administrator approval. You will be able to log in
-              once the admin has confirmed your role.
-            </p>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setPendingConsultant(false)}
-            >
-              Try a different account
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-md">
-        {/* Brand header */}
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center mx-auto mb-3">
             <ClipboardList className="w-6 h-6 text-white" />
@@ -92,16 +41,12 @@ export default function Login({ onLogin }: Props) {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-border p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <LogIn className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-foreground">Sign In</h2>
-          </div>
+          <h2 className="text-lg font-semibold text-foreground mb-1">Sign in</h2>
+          <p className="text-sm text-muted-foreground mb-6">Enter your registered NHS email and password.</p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium">
-                NHS Email Address
-              </Label>
+              <Label htmlFor="email">NHS Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -111,34 +56,48 @@ export default function Login({ onLogin }: Props) {
                 required
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground">
-                Enter the email address you registered with.
-              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={submitting || !email}
+              disabled={loginMutation.isPending}
             >
-              {submitting ? "Signing in…" : "Sign In"}
+              {loginMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Sign in
             </Button>
           </form>
 
           <div className="mt-6 pt-5 border-t border-border text-center">
             <p className="text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <button
-                onClick={() => navigate("/register")}
-                className="text-primary font-medium hover:underline"
-              >
+              <Link href="/register" className="text-primary font-medium hover:underline">
                 Register
-              </button>
+              </Link>
             </p>
           </div>
         </div>
-
-
       </div>
     </div>
   );

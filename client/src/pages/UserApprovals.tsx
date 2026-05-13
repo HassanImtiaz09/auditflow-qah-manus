@@ -1,200 +1,112 @@
-// UserApprovals — Admin-only pending user approval queue
-// Shows all users awaiting approval (unapproved accounts + consultants with role_approved=false)
-// Displays grade, role, registration date, and consultant-specific notification context
-
-import { useState } from "react";
+// UserApprovals — tRPC backend
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, XCircle, User, ShieldCheck, Inbox } from "lucide-react";
 import { toast } from "sonner";
-import {
-  CheckCircle2,
-  XCircle,
-  ClipboardCheck,
-  Mail,
-  ShieldCheck,
-  Bell,
-  User,
-} from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
-import {
-  getAllUsers,
-  approveUser,
-  rejectUser,
-  getNotifications,
-  markNotificationRead,
-  type AppUser,
-} from "@/lib/store";
 
-interface Props {
-  user: AppUser;
-  onRefresh: () => void;
-}
+export default function UserApprovals() {
+  const utils = trpc.useUtils();
+  const { data: pendingUsers = [], isLoading } = trpc.users.pending.useQuery();
 
-export default function UserApprovals({ user, onRefresh }: Props) {
-  const [, forceUpdate] = useState(0);
+  const approveMutation = trpc.users.approve.useMutation({
+    onSuccess: () => {
+      toast.success("User approved.");
+      utils.users.pending.invalidate();
+      utils.users.all.invalidate();
+    },
+    onError: err => toast.error(err.message),
+  });
 
-  // Pending = unapproved accounts OR consultants awaiting role approval
-  const pending = getAllUsers().filter((u) => !u.approved || (u.role === "consultant" && !u.role_approved));
-  const notifications = getNotifications().filter((n) => !n.read);
+  const rejectMutation = trpc.users.reject.useMutation({
+    onSuccess: () => {
+      toast.success("User rejected.");
+      utils.users.pending.invalidate();
+    },
+    onError: err => toast.error(err.message),
+  });
 
-  const handleApprove = (u: AppUser) => {
-    approveUser(u.id);
-    toast.success(`${u.full_name} approved — they can now log in as a ${u.role}.`);
-    forceUpdate((n) => n + 1);
-    onRefresh();
-  };
-
-  const handleReject = (u: AppUser) => {
-    rejectUser(u.id);
-    toast.success(`${u.full_name}'s registration has been removed.`);
-    forceUpdate((n) => n + 1);
-    onRefresh();
-  };
-
-  const handleMarkRead = (userId: string) => {
-    const notif = getNotifications().find((n) => n.user_id === userId && !n.read);
-    if (notif) {
-      markNotificationRead(notif.id);
-      forceUpdate((n) => n + 1);
-    }
-  };
-
-  if (user.role !== "admin") {
-    return (
-      <div className="p-6">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-          <ClipboardCheck className="w-6 h-6 text-amber-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-amber-800">Admin access required</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
 
   return (
     <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-xl font-bold text-foreground">User Approvals</h2>
-        <span className="text-sm text-muted-foreground">{pending.length} pending</span>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold">User Approvals</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Review and approve new user registrations. Consultants require approval before they can access the Approval Queue.
+        </p>
       </div>
-      <p className="text-sm text-muted-foreground mb-6">
-        Review and approve or reject new user registration requests. Consultant registrations require explicit role approval before they can access the audit approval queue.
-      </p>
-
-      {/* Unread notifications banner */}
-      {notifications.length > 0 && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <Bell className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-800 mb-1">
-              {notifications.length} new consultant registration{notifications.length > 1 ? "s" : ""}
-            </p>
-            <div className="space-y-1">
-              {notifications.map((n) => (
-                <p key={n.id} className="text-xs text-amber-700 leading-relaxed">
-                  {n.message}
-                </p>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pending.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-12 text-center shadow-sm">
-          <ClipboardCheck className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm font-medium text-foreground">No pending approvals</p>
-          <p className="text-xs text-muted-foreground mt-1">All user registrations have been reviewed.</p>
+      {pendingUsers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Inbox className="w-12 h-12 text-muted-foreground/40 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No pending registrations</p>
+          <p className="text-xs text-muted-foreground mt-1">All user accounts are up to date.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {pending.map((u) => {
-            const isConsultantRequest = u.role === "consultant" && !u.role_approved;
-            const hasUnreadNotif = notifications.some((n) => n.user_id === u.id);
-
-            return (
-              <div
-                key={u.id}
-                className={`bg-card rounded-xl border shadow-sm p-5 ${
-                  isConsultantRequest
-                    ? "border-amber-300 bg-amber-50/30"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
-                        isConsultantRequest
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {u.full_name?.[0]?.toUpperCase() || "U"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="text-[13px] font-semibold text-foreground">{u.full_name}</p>
-                        {isConsultantRequest && (
-                          <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0 h-4 hover:bg-amber-100">
-                            <ShieldCheck className="w-2.5 h-2.5 mr-1" />
-                            Consultant Request
-                          </Badge>
-                        )}
-                        {hasUnreadNotif && (
-                          <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 h-4 hover:bg-red-500">
-                            New
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
-                        <Mail className="w-3 h-3" />
-                        {u.email}
-                      </p>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {u.grade && (
-                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <User className="w-3 h-3" />
-                            {u.grade}
-                          </span>
-                        )}
-                        <span className="text-[11px] text-muted-foreground">
-                          Registered {format(new Date(u.created_date), "dd MMM yyyy 'at' HH:mm")}
-                        </span>
-                      </div>
-                      {isConsultantRequest && (
-                        <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-                          This user registered as a <strong>{u.grade}</strong> and is requesting consultant-level access to approve and reject audit submissions. Approving will grant them access to the Approval Queue.
-                        </p>
-                      )}
-                    </div>
+        <div className="space-y-4">
+          {pendingUsers.map(u => (
+            <div key={u.id} className="bg-card rounded-xl border border-border shadow-sm p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <User className="w-5 h-5 text-blue-600" />
                   </div>
-
-                  <div className="flex flex-col gap-2 flex-shrink-0">
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => {
-                        handleApprove(u);
-                        if (hasUnreadNotif) handleMarkRead(u.id);
-                      }}
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 text-red-700 hover:bg-red-50"
-                      onClick={() => handleReject(u)}
-                    >
-                      <XCircle className="w-4 h-4 mr-1" />
-                      Reject
-                    </Button>
+                  <div>
+                    <p className="font-semibold text-sm">{u.fullName ?? u.name}</p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
                   </div>
                 </div>
+                {u.auditRole === "consultant" && (
+                  <span className="inline-flex items-center gap-1.5 text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-2.5 py-1 text-xs font-semibold">
+                    <ShieldCheck className="w-3 h-3" />Consultant
+                  </span>
+                )}
               </div>
-            );
-          })}
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-xs text-muted-foreground">Grade / Role</span>
+                  <p className="font-medium mt-0.5">{u.grade ?? "—"}</p>
+                </div>
+                {u.title && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Title</span>
+                    <p className="font-medium mt-0.5">{u.title}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="text-xs text-muted-foreground">Registered</span>
+                  <p className="font-medium mt-0.5">
+                    {u.createdAt ? format(new Date(u.createdAt), "dd MMM yyyy 'at' HH:mm") : "—"}
+                  </p>
+                </div>
+              </div>
+              {u.auditRole === "consultant" && (
+                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800">
+                  <ShieldCheck className="w-3.5 h-3.5 inline mr-1.5" />
+                  Approving this user grants them access to the <strong>Approval Queue</strong>, where they can approve or reject audits assigned to them as supervising consultant.
+                </div>
+              )}
+              <div className="mt-4 flex gap-3">
+                <Button
+                  size="sm"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => approveMutation.mutate({ userId: u.id })}
+                  disabled={approveMutation.isPending}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" />Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => rejectMutation.mutate({ userId: u.id })}
+                  disabled={rejectMutation.isPending}
+                >
+                  <XCircle className="w-4 h-4 mr-1.5" />Reject
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

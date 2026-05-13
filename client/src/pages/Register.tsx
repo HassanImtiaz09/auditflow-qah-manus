@@ -1,11 +1,7 @@
-// AuditFlow QAH — Registration Page
-// Design: NHS Clinical Precision — clean card on off-white canvas, navy accents
-// Captures: full name, grade/role (from GRADES list), NHS email
-// Consultant grades → pending admin approval; all others → auto-approved
-
+// AuditFlow QAH — Register Page (tRPC + password auth)
 import { useState } from "react";
-import { useLocation } from "wouter";
-import { ClipboardList, UserPlus, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Link } from "wouter";
+import { ClipboardList, UserPlus, CheckCircle2, Clock, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,67 +14,59 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { GRADES } from "@/lib/auditConstants";
-import { registerUser, getAllUsers, setCurrentUser } from "@/lib/store";
+import { trpc } from "@/lib/trpc";
 
-const CONSULTANT_GRADES = ["Consultant", "Associate Specialist"];
+const CONSULTANT_GRADES = ["Consultant", "Associate Specialist", "Specialty Doctor"];
 
-interface Props {
-  onRegistered: () => void;
-}
-
-export default function Register({ onRegistered }: Props) {
-  const [, navigate] = useLocation();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [grade, setGrade] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+export default function Register() {
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    title: "",
+    grade: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [showPw, setShowPw] = useState(false);
   const [registered, setRegistered] = useState<"clinician" | "consultant_pending" | null>(null);
 
-  const isConsultantGrade = CONSULTANT_GRADES.includes(grade);
+  const utils = trpc.useUtils();
+  const registerMutation = trpc.auth.register.useMutation({
+    onSuccess: (data) => {
+      if (data.pending) {
+        setRegistered("consultant_pending");
+      } else {
+        utils.auth.me.invalidate();
+        utils.auth.currentUser.invalidate();
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const isConsultantGrade = CONSULTANT_GRADES.includes(form.grade);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim() || !grade) {
-      toast.error("Please complete all fields.");
+    if (form.password !== form.confirmPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("Please enter a valid email address.");
+    if (form.password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
       return;
     }
-    // Check for duplicate email
-    const existing = getAllUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) {
-      toast.error("An account with this email already exists.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const newUser = registerUser({ full_name: fullName.trim(), email: email.trim(), grade });
-
-      if (isConsultantGrade) {
-        setRegistered("consultant_pending");
-      } else {
-        // Auto-approved clinician — log them in immediately
-        setCurrentUser(newUser);
-        setRegistered("clinician");
-        toast.success("Account created! Welcome to AuditFlow.");
-        setTimeout(() => {
-          onRegistered();
-          navigate("/");
-        }, 2000);
-      }
-    } catch {
-      toast.error("Registration failed. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    registerMutation.mutate({
+      fullName: form.fullName,
+      email: form.email,
+      title: form.title,
+      grade: form.grade,
+      password: form.password,
+    });
   };
 
-  const handleLoginInstead = () => {
-    navigate("/login");
-  };
+  const handleLoginInstead = () => { window.location.href = '/login'; };
 
   // ── Success states ────────────────────────────────────────────────────────
   if (registered === "consultant_pending") {
@@ -152,83 +140,119 @@ export default function Register({ onRegistered }: Props) {
             <h2 className="text-lg font-semibold text-foreground">Create Account</h2>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full name */}
-            <div className="space-y-1.5">
-              <Label htmlFor="fullName" className="text-sm font-medium">
-                Full Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="fullName"
-                type="text"
-                placeholder="e.g. Dr. Jane Smith"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="title">Title</Label>
+                <select
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select…</option>
+                  {["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof"].map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  placeholder="Jane Smith"
+                  value={form.fullName}
+                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  required
+                />
+              </div>
             </div>
 
-            {/* NHS Email */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium">
-                NHS Email Address <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="email">NHS Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="name@porthosp.nhs.uk"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
               />
             </div>
 
-            {/* Grade / Role */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">
-                Grade / Role <span className="text-destructive">*</span>
-              </Label>
-              <Select value={grade} onValueChange={setGrade}>
+              <Label>Grade / Role</Label>
+              <Select value={form.grade} onValueChange={(v) => setForm({ ...form, grade: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your grade or role" />
                 </SelectTrigger>
                 <SelectContent>
                   {GRADES.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {/* Consultant notice */}
               {isConsultantGrade && (
                 <div className="flex items-start gap-2 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                   <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-amber-700 leading-relaxed">
-                    Consultant accounts require admin approval before you can access the approval queue. You will be notified once approved.
+                    Consultant-grade accounts require admin approval before you can access the approval queue.
                   </p>
                 </div>
               )}
             </div>
 
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Repeat password"
+                value={form.confirmPassword}
+                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                required
+              />
+            </div>
+
             <Button
               type="submit"
               className="w-full"
-              disabled={submitting || !fullName || !email || !grade}
+              disabled={registerMutation.isPending}
             >
-              {submitting ? "Creating account…" : "Create Account"}
+              {registerMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Create Account
             </Button>
           </form>
 
           <div className="mt-6 pt-5 border-t border-border text-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <button
-                onClick={handleLoginInstead}
-                className="text-primary font-medium hover:underline"
-              >
+              <Link href="/" className="text-primary font-medium hover:underline">
                 Sign in
-              </button>
+              </Link>
             </p>
           </div>
         </div>

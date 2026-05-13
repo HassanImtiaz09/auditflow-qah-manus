@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, email, fullName, auditRole, approved, roleApproved, loginMethod, SUBSTRING(passwordHash, 1, 30) as hashPrefix FROM users WHERE email = 'hassanimtiaz09@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, email, fullName, auditRole, approved, roleApproved, loginMethod, SUBSTRING(passwordHash, 1, 30) as hashPrefix FROM users WHERE email = 'hassanimtiaz09@gmail.com';",
+  "rows": [
+    {
+      "id": "1",
+      "email": "hassanimtiaz09@gmail.com",
+      "fullName": "System Admin",
+      "auditRole": "admin",
+      "approved": "1",
+      "roleApproved": "1",
+      "loginMethod": "password",
+      "hashPrefix": "$2b$12$j6WMUzZTglZ73AkIzwldXe8"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tfullName\tauditRole\tapproved\troleApproved\tloginMethod\thashPrefix\n1\thassanimtiaz09@gmail.com\tSystem Admin\tadmin\t1\t1\tpassword\t$2b$12$j6WMUzZTglZ73AkIzwldXe8\n",
+  "stderr": "",
+  "execution_time_ms": 265
+}

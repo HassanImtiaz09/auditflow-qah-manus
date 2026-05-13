@@ -1,4 +1,4 @@
-// AuditFlow QAH — AppLayout
+// AuditFlow QAH - AppLayout
 // Design: Fixed 240px dark navy sidebar, cool off-white content area
 // Sidebar: deep navy (#0f2744 approx), active items have left border accent
 
@@ -21,8 +21,8 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { AppUser } from "@/lib/store";
-import { getSubmissions, getUnreadNotificationCount } from "@/lib/store";
+import { trpc } from "@/lib/trpc";
+import type { User } from "../../../../drizzle/schema";
 
 interface NavItem {
   path: string;
@@ -74,7 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
 ];
 
 interface Props {
-  user: AppUser;
+  user: User;
   children: React.ReactNode;
   onLogout?: () => void;
 }
@@ -83,11 +83,13 @@ export default function AppLayout({ user, children, onLogout }: Props) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isConsultant = user.role === "consultant" || user.role === "admin";
-  const isAdmin = user.role === "admin";
+  const isConsultant = user.auditRole === "consultant" || user.auditRole === "admin";
+  const isAdmin = user.auditRole === "admin";
 
-  const pendingCount = getSubmissions().filter((s) => s.status === "pending").length;
-  const notifCount = getUnreadNotificationCount();
+  const { data: queue } = trpc.audits.myQueue.useQuery();
+  const { data: notifications } = trpc.notifications.unread.useQuery();
+  const pendingCount = queue?.length ?? 0;
+  const notifCount = notifications?.length ?? 0;
 
   const filteredSections = NAV_SECTIONS.map((section) => ({
     ...section,
@@ -163,15 +165,16 @@ export default function AppLayout({ user, children, onLogout }: Props) {
       <div className="p-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-8 h-8 rounded-full bg-blue-500/30 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-            {user.full_name?.[0]?.toUpperCase() || "U"}
+            {(user.fullName ?? user.name ?? "U")[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-white truncate">{user.full_name}</p>
-            <p className="text-[10px] text-white/50 truncate">{user.grade || user.role}</p>
+            <p className="text-xs font-medium text-white truncate">{user.fullName ?? user.name}</p>
+            <p className="text-[10px] text-white/50 truncate capitalize">{user.grade ?? user.auditRole}</p>
           </div>
         </div>
         {onLogout && (
           <button
+            type="button"
             onClick={onLogout}
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors text-[11px]"
           >

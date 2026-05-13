@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE users SET passwordHash = '$2b$12$fixQ6FDnlORNaxyVY7vG6eIlLa3xIFJ.ces5dm5oBwrPB13TKe0VW', loginMethod = 'password' WHERE email = 'hassanimtiaz09@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute UPDATE users SET passwordHash = '$2b$12$fixQ6FDnlORNaxyVY7vG6eIlLa3xIFJ.ces5dm5oBwrPB13TKe0VW', loginMethod = 'password' WHERE email = 'hassanimtiaz09@gmail.com';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 271
+}

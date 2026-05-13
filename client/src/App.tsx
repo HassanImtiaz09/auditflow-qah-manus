@@ -1,8 +1,7 @@
-// AuditFlow QAH — Main App
-// Design: NHS Clinical Precision — deep navy sidebar, cool off-white canvas
-// Uses local localStorage store; login/register flow with role-based access
+// AuditFlow QAH - Main App
+// Full-stack version: tRPC backend, MySQL database, bcrypt password auth
 
-import { useState, useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, useLocation } from "wouter";
@@ -22,116 +21,80 @@ import UserManagement from "./pages/UserManagement";
 import UserApprovals from "./pages/UserApprovals";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import { initStore, getCurrentUser, type AppUser } from "./lib/store";
-
-// Initialise store with seed data on first load — must run before any auth check
-initStore();
-
-/** Returns true only if there is a valid, fully-approved user in localStorage */
-function isSessionValid(): boolean {
-  try {
-    const raw = localStorage.getItem("auditflow_current_user");
-    if (!raw) return false;
-    const u = JSON.parse(raw) as AppUser;
-    if (!u || !u.id || !u.approved) return false;
-    if (u.role === "consultant" && !u.role_approved) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-interface AuthedAppProps {
-  onLogout: () => void;
-}
-
-function AuthedApp({ onLogout }: AuthedAppProps) {
-  const [user, setUser] = useState<AppUser>(getCurrentUser);
-  const [tick, setTick] = useState(0);
-
-  const handleRefresh = useCallback(() => setTick((n) => n + 1), []);
-
-  // Re-read current user from store on tick (in case it was updated externally)
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, [tick]);
-
-  return (
-    <AppLayout user={user} key={user.id} onLogout={onLogout}>
-      <div className="p-0" key={tick}>
-        <Switch>
-          <Route path="/">
-            <SubmitAudit user={user} onRefresh={handleRefresh} />
-          </Route>
-          <Route path="/check-status">
-            <CheckStatus user={user} onRefresh={handleRefresh} />
-          </Route>
-          <Route path="/approval-queue">
-            <ApprovalQueue user={user} onRefresh={handleRefresh} />
-          </Route>
-          <Route path="/registry">
-            <AuditRegistry user={user} onRefresh={handleRefresh} />
-          </Route>
-          <Route path="/statistics">
-            <Statistics />
-          </Route>
-          <Route path="/export">
-            <ExportData />
-          </Route>
-          <Route path="/settings">
-            <SettingsPage user={user} />
-          </Route>
-          <Route path="/calendar">
-            <AuditCalendar />
-          </Route>
-          <Route path="/decision-log">
-            <ConsultantDecisionLog user={user} />
-          </Route>
-          <Route path="/users">
-            <UserManagement user={user} onRefresh={handleRefresh} />
-          </Route>
-          <Route path="/approvals">
-            <UserApprovals user={user} onRefresh={handleRefresh} />
-          </Route>
-        </Switch>
-      </div>
-    </AppLayout>
-  );
-}
+import { trpc } from "./lib/trpc";
 
 function AppRouter() {
-  const [authed, setAuthed] = useState(() => isSessionValid());
-  const [location] = useLocation();
+  const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
 
-  const handleLogin = () => {
-    setAuthed(true);
-  };
+  const { data: currentUser, isLoading } = trpc.auth.currentUser.useQuery(
+    undefined,
+    { retry: false, staleTime: 0 }
+  );
 
-  const handleLogout = () => {
-    // Clear current user from localStorage so the session is truly ended
-    localStorage.removeItem("auditflow_current_user");
-    setAuthed(false);
-  };
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      // Hard reload to clear all React state and tRPC cache
+      window.location.href = "/login";
+    },
+    onError: () => {
+      // Even if the server call fails, redirect to login
+      window.location.href = "/login";
+    },
+  });
 
-  const handleRegistered = () => {
-    setAuthed(true);
-  };
+  // After logout, currentUser becomes null - navigate to login
+  useEffect(() => {
+    if (!isLoading && !currentUser) {
+      // Only redirect if we're not already on an auth page
+      const path = window.location.pathname;
+      if (path !== "/login" && path !== "/register") {
+        window.location.href = "/login";
+      }
+    }
+  }, [currentUser, isLoading]);
 
-  // If not authed and not on register, show login/register
-  if (!authed) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-slate-500 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  // Not authenticated - show login/register
+  if (!currentUser) {
     return (
       <Switch>
-        <Route path="/register">
-          <Register onRegistered={handleRegistered} />
-        </Route>
-        <Route>
-          <Login onLogin={handleLogin} />
-        </Route>
+        <Route path="/register" component={Register} />
+        <Route component={Login} />
       </Switch>
     );
   }
 
-  return <AuthedApp onLogout={handleLogout} />;
+  // Authenticated - show the app
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
+
+  return (
+    <AppLayout user={currentUser} onLogout={handleLogout}>
+      <Switch>
+        <Route path="/" component={SubmitAudit} />
+        <Route path="/login" component={SubmitAudit} />
+        <Route path="/check-status" component={CheckStatus} />
+        <Route path="/approval-queue" component={ApprovalQueue} />
+        <Route path="/registry" component={AuditRegistry} />
+        <Route path="/statistics" component={Statistics} />
+        <Route path="/export" component={ExportData} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/calendar" component={AuditCalendar} />
+        <Route path="/decision-log" component={ConsultantDecisionLog} />
+        <Route path="/users" component={UserManagement} />
+        <Route path="/approvals" component={UserApprovals} />
+      </Switch>
+    </AppLayout>
+  );
 }
 
 function App() {

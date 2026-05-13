@@ -1,198 +1,108 @@
-// ApprovalQueue — Consultant view to approve/reject pending submissions
+// ApprovalQueue — tRPC backend
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle2, XCircle, ClipboardList, Inbox } from "lucide-react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import StatusBadge from "@/components/shared/StatusBadge";
 import PriorityBadge from "@/components/shared/PriorityBadge";
-import { format } from "date-fns";
-import {
-  getSubmissions,
-  updateSubmission,
-  createLog,
-  type AppUser,
-} from "@/lib/store";
 
-interface Props {
-  user: AppUser;
-  onRefresh: () => void;
-}
+export default function ApprovalQueue() {
+  const utils = trpc.useUtils();
+  const { data: audits = [], isLoading } = trpc.audits.myQueue.useQuery();
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [expanded, setExpanded] = useState<number | null>(null);
 
-export default function ApprovalQueue({ user, onRefresh }: Props) {
-  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
-  const [rejectionErrors, setRejectionErrors] = useState<Record<string, boolean>>({});
-  const [processing, setProcessing] = useState<string | null>(null);
+  const decideMutation = trpc.audits.decide.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(vars.decision === "approved" ? "Audit approved." : "Audit rejected.");
+      utils.audits.myQueue.invalidate();
+      utils.audits.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
-  const pending = getSubmissions().filter((s) => s.status === "pending");
+  const decide = (auditId: number, decision: "approved" | "rejected") =>
+    decideMutation.mutate({ auditId, decision, note: notes[auditId] });
 
-  const isConsultant = user.role === "consultant" || user.role === "admin";
-
-  const handleApprove = (id: string, ref: string) => {
-    setProcessing(id);
-    updateSubmission(id, {
-      status: "approved",
-      approved_by: user.full_name,
-      approved_at: new Date().toISOString(),
-    });
-    createLog({
-      submission_id: id,
-      submission_ref: ref,
-      event: "approved",
-      actor: user.full_name,
-      actor_email: user.email,
-      note: "Approved via approval queue",
-    });
-    toast.success(`Audit ${ref} approved`);
-    setProcessing(null);
-    onRefresh();
-  };
-
-  const handleReject = (id: string, ref: string) => {
-    const reason = rejectionReasons[id]?.trim();
-    if (!reason) {
-      setRejectionErrors((prev) => ({ ...prev, [id]: true }));
-      return;
-    }
-    setProcessing(id);
-    updateSubmission(id, {
-      status: "rejected",
-      rejected_by: user.full_name,
-      rejected_at: new Date().toISOString(),
-      rejection_reason: reason,
-    });
-    createLog({
-      submission_id: id,
-      submission_ref: ref,
-      event: "rejected",
-      actor: user.full_name,
-      actor_email: user.email,
-      note: reason,
-    });
-    toast.success(`Audit ${ref} rejected`);
-    setRejectionErrors((prev) => ({ ...prev, [id]: false }));
-    setProcessing(null);
-    onRefresh();
-  };
-
-  if (!isConsultant) {
-    return (
-      <div className="p-6">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-          <AlertTriangle className="w-6 h-6 text-amber-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-amber-800">Consultant access required</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
 
   return (
     <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-xl font-bold text-foreground">Approval Queue</h2>
-        <span className="text-sm text-muted-foreground">{pending.length} pending</span>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold">Approval Queue</h1>
+        <p className="text-sm text-muted-foreground mt-1">Review and decide on pending audit submissions assigned to you.</p>
       </div>
-      <p className="text-sm text-muted-foreground mb-6">
-        Review and action pending audit submissions.
-      </p>
-
-      {pending.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-12 text-center shadow-sm">
-          <ClipboardCheck className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm font-medium text-foreground">All clear</p>
-          <p className="text-xs text-muted-foreground mt-1">No pending submissions to review.</p>
+      {audits.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Inbox className="w-12 h-12 text-muted-foreground/40 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No pending audits</p>
+          <p className="text-xs text-muted-foreground mt-1">All submissions have been reviewed.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {pending.map((sub) => (
-            <div key={sub.id} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-border">
+          {audits.map(audit => (
+            <div key={audit.id} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+              <div
+                className="p-5 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setExpanded(expanded === audit.id ? null : audit.id)}
+              >
                 <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <ClipboardList className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-mono text-xs text-muted-foreground">{audit.refNumber}</p>
+                      <p className="text-sm font-semibold mt-0.5">{audit.category}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">By {audit.submitterName} · {audit.submitterGrade}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <PriorityBadge priority={audit.priority} />
+                    <StatusBadge status={audit.status} />
+                  </div>
+                </div>
+              </div>
+              {expanded === audit.id && (
+                <div className="border-t border-border px-5 pb-5 pt-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-xs text-muted-foreground">Setting</span><p className="font-medium">{audit.clinicalSetting}</p></div>
+                    <div><span className="text-xs text-muted-foreground">Topic</span><p className="font-medium">{audit.topic || "—"}</p></div>
+                    {audit.supervisorName && (
+                      <div className="col-span-2"><span className="text-xs text-muted-foreground">Supervisor</span><p className="font-medium">{audit.supervisorName}</p></div>
+                    )}
+                    <div className="col-span-2"><span className="text-xs text-muted-foreground">Description</span><p className="mt-1 leading-relaxed">{audit.description}</p></div>
+                  </div>
                   <div>
-                    <p className="ref-mono text-xs text-muted-foreground">{sub.ref}</p>
-                    <h3 className="text-sm font-semibold text-foreground mt-0.5">
-                      {sub.topic || sub.type}
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {sub.auditor} · {sub.grade}
-                    </p>
+                    <label className="text-xs font-medium">Decision Note (optional)</label>
+                    <Textarea
+                      value={notes[audit.id] ?? ""}
+                      onChange={e => setNotes(p => ({ ...p, [audit.id]: e.target.value }))}
+                      placeholder="Add a note for the submitter…"
+                      className="mt-1 text-sm min-h-[80px]"
+                    />
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <PriorityBadge priority={sub.priority} />
-                    <StatusBadge status={sub.status} />
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => decide(audit.id, "approved")}
+                      disabled={decideMutation.isPending}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />Approve
+                    </Button>
+                    <Button
+                      onClick={() => decide(audit.id, "rejected")}
+                      disabled={decideMutation.isPending}
+                      variant="destructive"
+                      className="flex-1"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />Reject
+                    </Button>
                   </div>
-                </div>
-              </div>
-
-              <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px] border-b border-border bg-muted/20">
-                <div>
-                  <p className="text-muted-foreground">Category</p>
-                  <p className="font-medium text-foreground mt-0.5">{sub.type}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Setting</p>
-                  <p className="font-medium text-foreground mt-0.5">{sub.setting}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Period</p>
-                  <p className="font-medium text-foreground mt-0.5">{sub.period || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Submitted</p>
-                  <p className="font-medium text-foreground mt-0.5">
-                    {format(new Date(sub.created_date), "dd MMM yyyy")}
-                  </p>
-                </div>
-              </div>
-
-              {sub.description && (
-                <div className="px-5 py-3 border-b border-border">
-                  <p className="text-xs text-muted-foreground mb-1">Description</p>
-                  <p className="text-[13px] text-foreground leading-relaxed">{sub.description}</p>
                 </div>
               )}
-
-              <div className="p-5">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Rejection reason (required if rejecting)
-                </p>
-                <Textarea
-                  value={rejectionReasons[sub.id] || ""}
-                  onChange={(e) => {
-                    setRejectionReasons((prev) => ({ ...prev, [sub.id]: e.target.value }));
-                    if (rejectionErrors[sub.id])
-                      setRejectionErrors((prev) => ({ ...prev, [sub.id]: false }));
-                  }}
-                  className={`text-[13px] min-h-[70px] mb-3 ${rejectionErrors[sub.id] ? "border-red-400" : ""}`}
-                  placeholder="Provide a reason for rejection..."
-                />
-                {rejectionErrors[sub.id] && (
-                  <p className="text-red-500 text-[11px] mb-2 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> A rejection reason is required.
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleApprove(sub.id, sub.ref)}
-                    disabled={processing === sub.id}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-1" />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-300 text-red-700 hover:bg-red-50"
-                    onClick={() => handleReject(sub.id, sub.ref)}
-                    disabled={processing === sub.id}
-                  >
-                    <XCircle className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                </div>
-              </div>
             </div>
           ))}
         </div>
