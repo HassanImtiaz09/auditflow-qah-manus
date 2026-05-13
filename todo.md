@@ -178,3 +178,12 @@
 - [x] Frontend — Step 3: "Go back to fix" button jumps to the relevant step
 - [x] Frontend — Step 2: client-side pre-validation blocks advancing to Step 3 with toast listing missing fields
 - [x] Vitest tests for submitDraft validation (missing objectives, empty standards, missing data collection, passes when all present)
+
+## Wizard Flow Fix (Round 10)
+
+- [x] Step 1 buttons: "Save" (draft) + "Next Page: Details" (no Submit button on Step 1)
+- [x] Step 2 buttons: "Save" (draft) + "Review and Submit" (no Skip to Submit)
+- [x] Step 3 buttons: "Back" + "Download Form" + "Submit Now"
+- [x] Remove any path that allows final submission without passing through Step 2
+- [x] Step 2 must always be shown before Step 3 — cannot jump from Step 1 to Step 3
+- [x] Client-side validation on "Review and Submit" (Step 2 → Step 3 transition) shows inline errors, not a toast

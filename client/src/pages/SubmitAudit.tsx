@@ -361,7 +361,7 @@ function Step1({
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
 
-function Step2({ data, onChange, specialty }: { data: WizardData; onChange: (patch: Partial<WizardData>) => void; specialty: string }) {
+function Step2({ data, onChange, specialty, errors = {} }: { data: WizardData; onChange: (patch: Partial<WizardData>) => void; specialty: string; errors?: Partial<Record<string, string>> }) {
   const [presetOpen, setPresetOpen] = useState(false);
   const { data: presets = [] } = trpc.audits.standardPresets.useQuery(
     { specialty },
@@ -444,8 +444,15 @@ function Step2({ data, onChange, specialty }: { data: WizardData; onChange: (pat
           </div>
         </div>
         <div>
-          <Label className="text-xs">Audit Objectives</Label>
-          <Textarea value={data.auditObjectives} onChange={e => onChange({ auditObjectives: e.target.value })} className="mt-1 text-[13px] min-h-[80px]" placeholder="What outcomes does this audit aim to achieve?" />
+          <Label className="text-xs">Audit Objectives <span className="text-red-500">*</span></Label>
+          <Textarea
+            value={data.auditObjectives}
+            onChange={e => onChange({ auditObjectives: e.target.value })}
+            className={`mt-1 text-[13px] min-h-[80px]${errors.auditObjectives ? " border-red-400 ring-1 ring-red-400" : ""}`}
+            placeholder="What outcomes does this audit aim to achieve?"
+            aria-invalid={!!errors.auditObjectives}
+          />
+          {errors.auditObjectives && <p className="mt-1 text-xs text-red-600">{errors.auditObjectives}</p>}
         </div>
         <div className="mt-4">
           <Label className="text-xs">Who Will Be Involved and Their Role</Label>
@@ -454,9 +461,12 @@ function Step2({ data, onChange, specialty }: { data: WizardData; onChange: (pat
       </div>
 
       {/* Audit Standards */}
-      <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+      <div className={`bg-card rounded-xl border p-6 shadow-sm${errors.auditStandards ? " border-red-400" : " border-border"}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold">Audit Standards</h3>
+          <div>
+            <h3 className="text-sm font-semibold">Audit Standards <span className="text-red-500">*</span></h3>
+            {errors.auditStandards && <p className="text-xs text-red-600 mt-0.5">{errors.auditStandards}</p>}
+          </div>
           <div className="flex gap-2">
             {presets.length > 0 && (
               <Popover open={presetOpen} onOpenChange={setPresetOpen}>
@@ -555,8 +565,15 @@ function Step2({ data, onChange, specialty }: { data: WizardData; onChange: (pat
           </div>
         )}
         <div className="mt-4">
-          <Label className="text-xs">Data Collection Method</Label>
-          <Textarea value={data.dataCollectionMethodDetail} onChange={e => onChange({ dataCollectionMethodDetail: e.target.value })} className="mt-1 text-[13px] min-h-[60px]" placeholder="Describe how data will be collected..." />
+          <Label className="text-xs">Data Collection Method <span className="text-red-500">*</span></Label>
+          <Textarea
+            value={data.dataCollectionMethodDetail}
+            onChange={e => onChange({ dataCollectionMethodDetail: e.target.value })}
+            className={`mt-1 text-[13px] min-h-[60px]${errors.dataCollectionMethodDetail ? " border-red-400 ring-1 ring-red-400" : ""}`}
+            placeholder="Describe how data will be collected..."
+            aria-invalid={!!errors.dataCollectionMethodDetail}
+          />
+          {errors.dataCollectionMethodDetail && <p className="mt-1 text-xs text-red-600">{errors.dataCollectionMethodDetail}</p>}
         </div>
         <div className="mt-4">
           <Label className="text-xs mb-2 block">Data Collection Timing</Label>
@@ -1089,12 +1106,13 @@ export default function SubmitAudit() {
   // ── Final Submit ───────────────────────────────────────────────────────────
 
   const validateStep2 = () => {
-    const missing: string[] = [];
-    if (!data.auditObjectives.trim()) missing.push("Audit Objectives");
+    const e: Partial<Record<string, string>> = {};
+    if (!data.auditObjectives.trim()) e.auditObjectives = "Required — please describe the objectives of this audit";
     const hasStandards = data.auditStandards.some(s => s.standard && s.standard.trim().length > 0);
-    if (!hasStandards) missing.push("Audit Standards (at least one row)");
-    if (!data.dataCollectionMethodDetail.trim()) missing.push("Data Collection Method");
-    return missing;
+    if (!hasStandards) e.auditStandards = "Required — please add at least one audit standard";
+    if (!data.dataCollectionMethodDetail.trim()) e.dataCollectionMethodDetail = "Required — please describe the data collection method";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const finalSubmit = () => {
@@ -1179,6 +1197,7 @@ export default function SubmitAudit() {
         <Step2
           data={data}
           onChange={onChange}
+          errors={errors}
           specialty={(() => {
             const sup = consultants.find(c => c.id === data.supervisorId);
             if (sup) return sup.grade.replace(/^Consultant\s*[\u2014\-]\s*/i, "").trim();
@@ -1217,27 +1236,21 @@ export default function SubmitAudit() {
         </div>
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={saveDraft} disabled={isBusy}>
-            <Save className="w-4 h-4 mr-1" />Save as Draft
+            <Save className="w-4 h-4 mr-1" />Save
           </Button>
           {step < 3 && (
             <Button
               type="button"
               onClick={() => {
                 if (step === 1 && !validateStep1()) return;
-                if (step === 2) {
-                  const missing = validateStep2();
-                  if (missing.length > 0) {
-                    toast.error(`Please complete: ${missing.join(", ")}`);
-                    return;
-                  }
-                }
+                if (step === 2 && !validateStep2()) return;
                 setErrors({});
                 setSubmitError(null);
                 setStep(s => (s + 1) as 2 | 3);
               }}
               disabled={isBusy}
             >
-              {step === 2 ? "Review and Submit" : "Next"}
+              {step === 2 ? "Review and Submit" : "Next Page: Details"}
               <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           )}
