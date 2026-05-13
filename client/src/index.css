@@ -49,7 +49,7 @@
 
 :root {
   /* NHS Clinical Precision palette */
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
   /* Primary: NHS Blue */
   --primary: oklch(0.42 0.14 255);
@@ -62,6 +62,7 @@
   /* Cards */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.015 240);
+  --shadow-card: 0 1px 3px 0 oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.04);
 
   /* Popover */
   --popover: oklch(1 0 0);

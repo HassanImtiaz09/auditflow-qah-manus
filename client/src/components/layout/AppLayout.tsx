@@ -23,9 +23,12 @@ import {
   Bell,
   UserCircle,
 } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import type { User } from "../../../../drizzle/schema";
+
+const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663430072618/436kjx9HnHs4DfQBN2oU96/auditflow-logo-EjJ5FaZLtyvkjMQHAcbGWR.webp";
 
 interface NavItem {
   path: string;
@@ -122,9 +125,11 @@ export default function AppLayout({ user, children, onLogout }: Props) {
       {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-            <ClipboardList className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src={LOGO_URL}
+            alt="AuditFlow QAH"
+            className="w-9 h-9 rounded-lg flex-shrink-0 object-cover"
+          />
           <div>
             <h1 className="text-sm font-semibold text-white leading-tight">AuditFlow ENT</h1>
             <p className="text-[10px] text-white/50">QAH Audit Registry</p>

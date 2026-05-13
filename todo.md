@@ -245,3 +245,13 @@
 ### Tests
 - [x] Vitest: users.updateLinkedConsultant saves new linkedConsultantId and clears it on null
 - [x] Vitest: submitDraft sends audit_assigned (not audit_submitted) notification to consultant
+
+## Round 14 — Final UI Polish (Demo Ready)
+
+- [x] Generate professional AuditFlow QAH app logo (NHS-inspired, clean, modern)
+- [x] Upload logo to webdev static assets (CDN URL used directly in code; VITE_APP_LOGO is platform-managed)
+- [x] Login page: replace generic icon with logo, add two-column layout with NHS branding panel
+- [x] Sidebar: replace ClipboardList icon with logo image in AppLayout header
+- [x] Dashboard: polished welcome banner with logo + name, improved StatCard with rounded-xl icons and hover shadow
+- [x] Global: refined border-radius token (0.625rem), added shadow-card CSS variable, improved card hover shadows
+- [x] Favicon: updated in index.html with CDN logo URL (webp + apple-touch-icon)

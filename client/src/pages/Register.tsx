@@ -1,7 +1,7 @@
 // AuditFlow QAH — Register Page (tRPC + password auth)
 import { useState } from "react";
 import { Link } from "wouter";
-import { ClipboardList, UserPlus, CheckCircle2, Clock, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { UserPlus, CheckCircle2, Clock, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import { GRADES } from "@/lib/auditConstants";
 import { trpc } from "@/lib/trpc";
 import PasswordStrengthMeter from "@/components/shared/PasswordStrengthMeter";
 
+const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663430072618/436kjx9HnHs4DfQBN2oU96/auditflow-logo-EjJ5FaZLtyvkjMQHAcbGWR.webp";
 const CONSULTANT_GRADES = ["Consultant", "Associate Specialist", "Specialty Doctor"];
 
 export default function Register() {
@@ -128,9 +129,7 @@ export default function Register() {
       <div className="w-full max-w-md">
         {/* Brand header */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center mx-auto mb-3">
-            <ClipboardList className="w-6 h-6 text-white" />
-          </div>
+          <img src={LOGO_URL} alt="AuditFlow QAH" className="w-14 h-14 rounded-2xl shadow-md mx-auto mb-3" />
           <h1 className="text-xl font-semibold text-foreground">AuditFlow ENT</h1>
           <p className="text-sm text-muted-foreground">QAH Audit Registry · Portsmouth Hospitals NHS Trust</p>
         </div>

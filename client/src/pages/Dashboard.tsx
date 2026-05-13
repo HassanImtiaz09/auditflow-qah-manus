@@ -35,13 +35,13 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon, colour }: StatCardProps) {
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${colour}`}>
+    <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${colour}`}>
         {icon}
       </div>
       <div>
         <p className="text-2xl font-bold text-foreground leading-none">{value}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+        <p className="text-xs text-muted-foreground mt-1 leading-tight">{label}</p>
       </div>
     </div>
   );
@@ -106,19 +106,31 @@ export default function Dashboard() {
 
   const firstName = currentUser?.fullName?.split(" ")[0] ?? currentUser?.name ?? "there";
 
+  const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663430072618/436kjx9HnHs4DfQBN2oU96/auditflow-logo-EjJ5FaZLtyvkjMQHAcbGWR.webp";
+
   return (
     <div className="p-6 max-w-5xl">
-      {/* Greeting */}
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Good day, {firstName}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Here is a summary of your audit activity.
-          </p>
+      {/* Welcome banner */}
+      <div
+        className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4"
+        style={{ background: "oklch(0.19 0.04 255)" }}
+      >
+        <div className="flex items-center gap-4">
+          <img src={LOGO_URL} alt="AuditFlow" className="w-10 h-10 rounded-xl flex-shrink-0" />
+          <div>
+            <h1 className="text-lg font-semibold text-white leading-tight">
+              Good day, {firstName}
+            </h1>
+            <p className="text-sm text-white/60 mt-0.5">
+              Here is a summary of your audit activity.
+            </p>
+          </div>
         </div>
-        <Button onClick={() => navigate("/submit")} className="shrink-0">
+        <Button
+          onClick={() => navigate("/submit")}
+          className="shrink-0 bg-white/15 hover:bg-white/25 text-white border-white/20 border"
+          variant="outline"
+        >
           <Plus className="w-4 h-4 mr-1.5" />
           New Audit
         </Button>

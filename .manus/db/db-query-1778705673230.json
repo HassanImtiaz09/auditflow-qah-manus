@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, fullName, name, email, auditRole, role, approved, roleApproved, linkedConsultantId, createdAt FROM users WHERE auditRole = 'admin' OR role = 'admin' ORDER BY createdAt ASC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, fullName, name, email, auditRole, role, approved, roleApproved, linkedConsultantId, createdAt FROM users WHERE auditRole = 'admin' OR role = 'admin' ORDER BY createdAt ASC;",
+  "rows": [
+    {
+      "id": "1",
+      "fullName": "System Admin",
+      "name": "Hassan Imtiaz",
+      "email": "hassanimtiaz09@gmail.com",
+      "auditRole": "admin",
+      "role": "admin",
+      "approved": "1",
+      "roleApproved": "1",
+      "linkedConsultantId": "NULL",
+      "createdAt": "2026-05-13 02:41:41"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfullName\tname\temail\tauditRole\trole\tapproved\troleApproved\tlinkedConsultantId\tcreatedAt\n1\tSystem Admin\tHassan Imtiaz\thassanimtiaz09@gmail.com\tadmin\tadmin\t1\t1\tNULL\t2026-05-13 02:41:41\n",
+  "stderr": "",
+  "execution_time_ms": 445
+}
