@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   Bell,
+  UserCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
@@ -77,6 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/users",         label: "User Management",icon: Users,         adminOnly: true },
       { path: "/approvals",     label: "User Approvals", icon: ClipboardCheck,adminOnly: true, badge: true, badgeKey: "notif" },
       { path: "/notifications",  label: "Notifications",  icon: Bell,           badge: true, badgeKey: "personal_notif" },
+      { path: "/profile",         label: "My Profile",     icon: UserCircle },
     ],
   },
 ];

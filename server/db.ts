@@ -249,6 +249,21 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }
 
+export async function updateUserProfile(
+  userId: number,
+  data: { fullName?: string; title?: string; email?: string; grade?: string }
+) {
+  const db = await getDb();
+  if (!db) return;
+  const updateSet: Record<string, unknown> = {};
+  if (data.fullName !== undefined) { updateSet.fullName = data.fullName; updateSet.name = data.fullName; }
+  if (data.title !== undefined) updateSet.title = data.title;
+  if (data.email !== undefined) updateSet.email = data.email;
+  if (data.grade !== undefined) updateSet.grade = data.grade;
+  if (Object.keys(updateSet).length === 0) return;
+  await db.update(users).set(updateSet).where(eq(users.id, userId));
+}
+
 // ─── Audit Event helpers (Audit Trail) ───────────────────────────────────────
 
 export async function createAuditEvent(data: InsertAuditEvent) {

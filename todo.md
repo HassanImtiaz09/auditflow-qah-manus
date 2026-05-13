@@ -81,3 +81,14 @@
 ## Content Update
 
 - [x] Submit Audit — seed 14 named QAH ENT consultants as pre-approved database accounts; dropdown shows name + specialty
+
+## Profile Settings Page
+
+- [x] Profile — tRPC procedure: users.getProfile (returns current user's full profile)
+- [x] Profile — tRPC procedure: users.updateProfile (fullName, title, email, grade)
+- [x] Profile — tRPC procedure: users.changePassword (currentPassword, newPassword)
+- [x] Profile — validate email uniqueness on update
+- [x] Profile — validate currentPassword before allowing change
+- [x] Profile — ProfileSettings page at /profile with personal details form and password change section
+- [x] Profile — sidebar nav link to /profile (visible to all users)
+- [x] Profile — vitest tests for updateProfile and changePassword procedures

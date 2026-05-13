@@ -57,6 +57,7 @@ import {
   getAuditEvents,
   createAuditComment,
   getAuditComments,
+  updateUserProfile,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -584,6 +585,62 @@ const usersRouter = router({
       const user = await getUserById(ctx.user.id);
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       return searchUsersByName(input.query);
+    }),
+
+  /** Returns the current user's full profile */
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+    const { passwordHash: _ph, ...safe } = user;
+    return safe;
+  }),
+
+  /** Updates the current user's personal details */
+  updateProfile: protectedProcedure
+    .input(
+      z.object({
+        fullName: z.string().min(2).max(255).optional(),
+        title: z.string().max(64).optional(),
+        email: z.string().email().optional(),
+        grade: z.string().min(1).max(128).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Email uniqueness check
+      if (input.email) {
+        const existing = await getUserByEmail(input.email);
+        if (existing && existing.id !== ctx.user.id) {
+          throw new TRPCError({ code: "CONFLICT", message: "This email address is already in use by another account." });
+        }
+      }
+      await updateUserProfile(ctx.user.id, input);
+      const updated = await getUserById(ctx.user.id);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+      const { passwordHash: _ph, ...safe } = updated;
+      return safe;
+    }),
+
+  /** Changes the current user's password after verifying the current one */
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8, "New password must be at least 8 characters."),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!user.passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Password change is not available for this account type." });
+      }
+      const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Current password is incorrect." });
+      }
+      const newHash = await bcrypt.hash(input.newPassword, 12);
+      await updateUserPassword(ctx.user.id, newHash);
+      return { success: true };
     }),
 });
 
