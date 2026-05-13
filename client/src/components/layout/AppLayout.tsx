@@ -22,8 +22,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AppUser } from "@/lib/store";
-import { getSubmissions, getAllUsers, setCurrentUser, getUnreadNotificationCount } from "@/lib/store";
-import { ChevronDown } from "lucide-react";
+import { getSubmissions, getUnreadNotificationCount } from "@/lib/store";
 
 interface NavItem {
   path: string;
@@ -77,22 +76,12 @@ const NAV_SECTIONS: NavSection[] = [
 interface Props {
   user: AppUser;
   children: React.ReactNode;
-  onUserSwitch?: (user: AppUser) => void;
   onLogout?: () => void;
 }
 
-export default function AppLayout({ user, children, onUserSwitch, onLogout }: Props) {
+export default function AppLayout({ user, children, onLogout }: Props) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-
-  const allUsers = getAllUsers().filter((u) => u.approved);
-
-  const handleSwitchUser = (u: AppUser) => {
-    setCurrentUser(u);
-    setSwitcherOpen(false);
-    onUserSwitch?.(u);
-  };
 
   const isConsultant = user.role === "consultant" || user.role === "admin";
   const isAdmin = user.role === "admin";
@@ -170,53 +159,21 @@ export default function AppLayout({ user, children, onUserSwitch, onLogout }: Pr
         ))}
       </nav>
 
-      {/* User footer with switcher */}
-      <div className="p-4 border-t border-white/10 relative">
-        {/* Demo user switcher dropdown */}
-        {switcherOpen && (
-          <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-border overflow-hidden z-50">
-            <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground px-3 py-2 border-b border-border">
-              Switch demo user
-            </p>
-            {allUsers.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => handleSwitchUser(u)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${
-                  u.id === user.id ? "bg-muted/30" : ""
-                }`}
-              >
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-[10px] font-semibold flex-shrink-0">
-                  {u.full_name[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-foreground truncate">{u.full_name}</p>
-                  <p className="text-[9px] text-muted-foreground capitalize">{u.role}</p>
-                </div>
-                {u.id === user.id && (
-                  <span className="text-[9px] text-primary font-semibold">Active</span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-        <button
-          onClick={() => setSwitcherOpen(!switcherOpen)}
-          className="w-full flex items-center gap-3 hover:bg-white/8 rounded-lg p-1 -m-1 transition-colors"
-        >
+      {/* User footer */}
+      <div className="p-4 border-t border-white/10">
+        <div className="flex items-center gap-3 mb-2">
           <div className="w-8 h-8 rounded-full bg-blue-500/30 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
             {user.full_name?.[0]?.toUpperCase() || "U"}
           </div>
-          <div className="flex-1 min-w-0 text-left">
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-white truncate">{user.full_name}</p>
-            <p className="text-[10px] text-white/50 capitalize">{user.grade || user.role}</p>
+            <p className="text-[10px] text-white/50 truncate">{user.grade || user.role}</p>
           </div>
-          <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform flex-shrink-0 ${switcherOpen ? "rotate-180" : ""}`} />
-        </button>
+        </div>
         {onLogout && (
           <button
             onClick={onLogout}
-            className="mt-2 w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors text-[11px]"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors text-[11px]"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign out</span>

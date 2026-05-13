@@ -112,7 +112,7 @@ export default function Login({ onLogin }: Props) {
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                Enter the email you registered with. No password required in this demo.
+                Enter the email address you registered with.
               </p>
             </div>
 
@@ -138,11 +138,7 @@ export default function Login({ onLogin }: Props) {
           </div>
         </div>
 
-        {/* Demo hint */}
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-center">
-          <p className="text-xs text-blue-700 font-medium mb-1">Demo Admin Account</p>
-          <p className="text-xs text-blue-600">s.mitchell@porthosp.nhs.uk</p>
-        </div>
+
       </div>
     </div>
   );

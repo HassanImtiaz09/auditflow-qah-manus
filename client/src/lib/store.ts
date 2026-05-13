@@ -73,7 +73,8 @@ export interface AppSettings {
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 // Bump this version whenever the data schema changes to force a clean re-seed
-const STORE_VERSION = "v2-no-seed-audits";
+// Bump this version to force a clean wipe for all existing visitors
+const STORE_VERSION = "v3-no-auto-login";
 const VERSION_KEY = "auditflow_version";
 
 const SUBMISSIONS_KEY = "auditflow_submissions";
@@ -137,7 +138,8 @@ export function initStore(): void {
   if (!localStorage.getItem(SUBMISSIONS_KEY)) save(SUBMISSIONS_KEY, []);
   if (!localStorage.getItem(LOGS_KEY)) save(LOGS_KEY, []);
   if (!localStorage.getItem(COUNTER_KEY)) save(COUNTER_KEY, 0);
-  if (!localStorage.getItem(CURRENT_USER_KEY)) save(CURRENT_USER_KEY, SEED_USERS[0]);
+  // NOTE: CURRENT_USER_KEY is intentionally NOT seeded here.
+  // Users must explicitly log in — no one is auto-authenticated on first visit.
   if (!localStorage.getItem(NOTIFICATIONS_KEY)) save(NOTIFICATIONS_KEY, []);
 }
 

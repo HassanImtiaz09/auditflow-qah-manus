@@ -51,18 +51,13 @@ function AuthedApp({ onLogout }: AuthedAppProps) {
 
   const handleRefresh = useCallback(() => setTick((n) => n + 1), []);
 
-  const handleUserSwitch = (newUser: AppUser) => {
-    setUser(newUser);
-    handleRefresh();
-  };
-
   // Re-read current user from store on tick (in case it was updated externally)
   useEffect(() => {
     setUser(getCurrentUser());
   }, [tick]);
 
   return (
-    <AppLayout user={user} key={user.id} onUserSwitch={handleUserSwitch} onLogout={onLogout}>
+    <AppLayout user={user} key={user.id} onLogout={onLogout}>
       <div className="p-0" key={tick}>
         <Switch>
           <Route path="/">
