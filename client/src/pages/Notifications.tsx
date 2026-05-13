@@ -1,5 +1,5 @@
 // Notifications page — personal in-app notifications for all users
-import { Bell, CheckCheck, CheckCircle2, XCircle, RefreshCw, ClipboardCheck, ClipboardList } from "lucide-react";
+import { Bell, CheckCheck, CheckCircle2, XCircle, RefreshCw, ClipboardCheck, ClipboardList, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -40,6 +40,11 @@ const TYPE_CONFIG: Record<
     icon: <ClipboardList className="w-4 h-4" />,
     colour: "text-violet-600 bg-violet-50 border-violet-200",
     label: "New Audit Assigned",
+  },
+  account_approved: {
+    icon: <ShieldCheck className="w-4 h-4" />,
+    colour: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    label: "Account Approved",
   },
 };
 

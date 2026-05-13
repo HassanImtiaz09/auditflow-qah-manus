@@ -891,9 +891,32 @@ const usersRouter = router({
       linkedConsultantId: z.number().nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const user = await getUserById(ctx.user.id);
-      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const admin = await getUserById(ctx.user.id);
+      if (!admin || admin.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      // Fetch the target user before approval so we can send them a notification
+      const targetUser = await getUserById(input.userId);
       await approveUser(input.userId, input.linkedConsultantId);
+
+      // Notify the approved consultant so they know to log back in
+      if (targetUser && targetUser.auditRole === "consultant") {
+        await createNotification({
+          recipientId: targetUser.id,
+          userId: admin.id,
+          type: "account_approved",
+          message: `Your consultant account has been approved. You can now log in and access the full AuditFlow ENT system.`,
+        });
+        // Also push a notification to the project owner as a confirmation audit trail
+        try {
+          await notifyOwner({
+            title: "Consultant Account Approved",
+            content: `${targetUser.title ? targetUser.title + " " : ""}${targetUser.fullName ?? targetUser.name ?? "A consultant"} (${targetUser.email}) has been approved as a consultant on AuditFlow ENT QAH.`,
+          });
+        } catch {
+          console.warn("[Approve] Failed to send owner push notification for consultant approval");
+        }
+      }
+
       return { success: true };
     }),
 

@@ -1,0 +1,1 @@
+ALTER TABLE `notifications` MODIFY COLUMN `type` enum('consultant_registered','audit_submitted','audit_assigned','audit_reassigned','audit_approved','audit_rejected','account_approved') NOT NULL;

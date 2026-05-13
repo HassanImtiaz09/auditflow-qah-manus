@@ -267,3 +267,12 @@
 - [x] Frontend: Register.tsx — existing success card already shows Back to Login button; user can log in immediately after registration
 - [x] Vitest: pending user can log in successfully (credential check passes, no FORBIDDEN guard)
 - [x] Vitest: consultant registration triggers admin notification
+
+## Round 16 — Consultant Approval Notification + Auto-redirect
+
+- [x] Backend: after approveUser succeeds, send in-app notification to the approved consultant (type: account_approved)
+- [x] Backend: after approveUser succeeds, send Manus push notification to the project owner (notifyOwner) as audit trail confirmation
+- [x] Backend: add account_approved to the notifications type enum in schema; run db:push
+- [x] Frontend: PendingApproval page — polls currentUser every 10s; when approved=true hard-redirects to / with a success toast
+- [x] Frontend: Notifications page — ShieldCheck icon, emerald colour, "Account Approved" label for account_approved notifications
+- [x] Vitest: approveUser triggers an in-app notification to the approved user (3 tests, 98 total)
