@@ -1,6 +1,6 @@
 import { and, desc, eq, like, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { auditComments, auditEvents, audits, InsertAuditComment, InsertAuditEvent, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
+import { auditComments, auditEvents, audits, consultantNames, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -78,6 +78,25 @@ export async function getApprovedConsultants() {
     .select()
     .from(users)
     .where(and(eq(users.auditRole, "consultant"), eq(users.roleApproved, true), eq(users.approved, true)));
+}
+
+/** Returns all active entries from the consultantNames roster table */
+export async function getConsultantNames() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(consultantNames)
+    .where(eq(consultantNames.active, true))
+    .orderBy(consultantNames.fullName);
+}
+
+/** Adds a new name to the consultantNames roster */
+export async function addConsultantName(data: InsertConsultantName) {
+  const db = await getDb();
+  if (!db) return null;
+  const [result] = await db.insert(consultantNames).values(data);
+  return result;
 }
 
 export async function getPendingUsers() {

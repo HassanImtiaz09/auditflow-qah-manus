@@ -238,3 +238,24 @@ export const auditComments = mysqlTable("auditComments", {
 
 export type AuditComment = typeof auditComments.$inferSelect;
 export type InsertAuditComment = typeof auditComments.$inferInsert;
+
+// ─── Consultant Names (department roster — independent of user accounts) ────────
+// This table holds the canonical list of ENT consultants.
+// It is seeded on first run and updated by the admin.
+// User accounts can be linked to a record here via users.linkedConsultantId.
+
+export const consultantNames = mysqlTable("consultantNames", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Salutation: Mr, Miss, Dr, Prof, etc. */
+  title: varchar("title", { length: 64 }),
+  /** Full name e.g. "Costa Repanos" */
+  fullName: varchar("fullName", { length: 255 }).notNull(),
+  /** Grade/specialty e.g. "Consultant — Head and Neck" */
+  grade: varchar("grade", { length: 255 }),
+  /** Whether this entry is active (soft-delete) */
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ConsultantName = typeof consultantNames.$inferSelect;
+export type InsertConsultantName = typeof consultantNames.$inferInsert;

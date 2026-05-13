@@ -1,6 +1,7 @@
 // UserApprovals — tRPC backend
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, XCircle, User, ShieldCheck, Inbox, LinkIcon } from "lucide-react";
+import { CheckCircle2, XCircle, User, ShieldCheck, Inbox, LinkIcon, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
@@ -35,12 +36,24 @@ type PendingUser = {
 export default function UserApprovals() {
   const utils = trpc.useUtils();
   const { data: pendingUsers = [], isLoading } = trpc.users.pending.useQuery();
-  // Fetch the seeded consultant list for the picker
-  const { data: consultantList = [] } = trpc.audits.consultants.useQuery();
+  // Fetch the seeded consultant roster from the consultantNames table
+  const { data: consultantList = [], refetch: refetchConsultants } = trpc.audits.consultants.useQuery();
 
   // Dialog state — which user is being approved as consultant
   const [consultantDialog, setConsultantDialog] = useState<PendingUser | null>(null);
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
+
+  // Manual entry state
+  const [manualMode, setManualMode] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualGrade, setManualGrade] = useState("");
+  const [addingName, setAddingName] = useState(false);
+
+  const addConsultantNameMutation = trpc.audits.addConsultantName.useMutation({
+    onSuccess: async () => {
+      await refetchConsultants();
+    },
+  });
 
   const approveMutation = trpc.users.approve.useMutation({
     onSuccess: () => {
@@ -49,6 +62,9 @@ export default function UserApprovals() {
       utils.users.all.invalidate();
       setConsultantDialog(null);
       setSelectedConsultantId("");
+      setManualMode(false);
+      setManualName("");
+      setManualGrade("");
     },
     onError: err => toast.error(err.message),
   });
@@ -63,21 +79,50 @@ export default function UserApprovals() {
 
   function handleApprove(u: PendingUser) {
     if (u.auditRole === "consultant") {
-      // Open the consultant-link dialog first
       setConsultantDialog(u);
       setSelectedConsultantId("");
+      setManualMode(false);
+      setManualName("");
+      setManualGrade("");
     } else {
-      // Non-consultant: approve immediately without linking
       approveMutation.mutate({ userId: u.id });
     }
   }
 
-  function handleConfirmConsultantApproval() {
+  async function handleConfirmConsultantApproval() {
     if (!consultantDialog) return;
-    approveMutation.mutate({
-      userId: consultantDialog.id,
-      linkedConsultantId: selectedConsultantId ? Number(selectedConsultantId) : null,
-    });
+
+    if (manualMode) {
+      // Add the new name to the roster first, then approve
+      if (!manualName.trim()) {
+        toast.error("Please enter a consultant name.");
+        return;
+      }
+      setAddingName(true);
+      try {
+        const result = await addConsultantNameMutation.mutateAsync({
+          fullName: manualName.trim(),
+          grade: manualGrade.trim() || undefined,
+        });
+        // After adding, we need the new id — refetch and find it
+        const refreshed = await refetchConsultants();
+        const newEntry = refreshed.data?.find(c => c.displayName === manualName.trim());
+        approveMutation.mutate({
+          userId: consultantDialog.id,
+          linkedConsultantId: newEntry ? newEntry.id : null,
+        });
+      } catch {
+        toast.error("Failed to add consultant name. Please try again.");
+      } finally {
+        setAddingName(false);
+      }
+    } else {
+      // Approve with selected (or no) link
+      approveMutation.mutate({
+        userId: consultantDialog.id,
+        linkedConsultantId: selectedConsultantId ? Number(selectedConsultantId) : null,
+      });
+    }
   }
 
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
@@ -87,8 +132,8 @@ export default function UserApprovals() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold">User Approvals</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Review and approve new user registrations. When approving a consultant, you will be asked
-          to link their account to a named consultant from the department list.
+          Review and approve new user registrations. When approving a consultant, link their account
+          to a named consultant from the department list so audits are routed correctly.
         </p>
       </div>
 
@@ -173,7 +218,15 @@ export default function UserApprovals() {
       )}
 
       {/* Consultant-link dialog */}
-      <Dialog open={!!consultantDialog} onOpenChange={(open) => { if (!open) { setConsultantDialog(null); setSelectedConsultantId(""); } }}>
+      <Dialog open={!!consultantDialog} onOpenChange={(open) => {
+        if (!open) {
+          setConsultantDialog(null);
+          setSelectedConsultantId("");
+          setManualMode(false);
+          setManualName("");
+          setManualGrade("");
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -181,54 +234,92 @@ export default function UserApprovals() {
               Link Consultant Account
             </DialogTitle>
             <DialogDescription>
-              Select which named consultant from the department list this account belongs to.
-              Audits submitted with that consultant selected will be routed to this user for approval.
+              Select the consultant name from the department list, or enter a name manually if not
+              listed. You can also approve without linking.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-2">
-            <p className="text-sm font-medium mb-1">
-              Approving: <span className="text-foreground font-semibold">{consultantDialog?.fullName ?? consultantDialog?.name}</span>
-            </p>
-            <p className="text-xs text-muted-foreground mb-4">{consultantDialog?.email}</p>
-
-            <label className="text-sm font-medium block mb-1.5">
-              Link to consultant name <span className="text-muted-foreground font-normal">(required)</span>
-            </label>
-            <Select value={selectedConsultantId} onValueChange={setSelectedConsultantId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select consultant name…" />
-              </SelectTrigger>
-              <SelectContent>
-                {consultantList.map(c => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.fullName}{c.grade ? ` — ${c.grade}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {consultantList.length === 0 && (
-              <p className="text-xs text-amber-600 mt-2">
-                No consultant names found in the system. You can still approve without linking.
+          <div className="py-2 space-y-4">
+            <div>
+              <p className="text-sm font-medium">
+                Approving: <span className="text-foreground font-semibold">{consultantDialog?.fullName ?? consultantDialog?.name}</span>
               </p>
+              <p className="text-xs text-muted-foreground">{consultantDialog?.email}</p>
+            </div>
+
+            {!manualMode ? (
+              <div>
+                <label className="text-sm font-medium block mb-1.5">
+                  Link to consultant name <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Select value={selectedConsultantId} onValueChange={setSelectedConsultantId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select consultant name…" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {consultantList.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.fullName}{c.grade ? ` — ${c.grade.replace(/^Consultant\s*[—\-]\s*/i, "")}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <button
+                  type="button"
+                  className="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1"
+                  onClick={() => { setManualMode(true); setSelectedConsultantId(""); }}
+                >
+                  <PlusCircle className="w-3 h-3" />
+                  Name not on list? Enter manually
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">Consultant full name <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="e.g. John Smith"
+                    value={manualName}
+                    onChange={e => setManualName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">Specialty / Grade <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <Input
+                    placeholder="e.g. Consultant — Rhinology"
+                    value={manualGrade}
+                    onChange={e => setManualGrade(e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This name will be added to the department consultant list and will appear in the audit submission dropdown.
+                </p>
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={() => { setManualMode(false); setManualName(""); setManualGrade(""); }}
+                >
+                  ← Back to dropdown
+                </button>
+              </div>
             )}
           </div>
 
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
-              onClick={() => { setConsultantDialog(null); setSelectedConsultantId(""); }}
-              disabled={approveMutation.isPending}
+              onClick={() => { setConsultantDialog(null); setSelectedConsultantId(""); setManualMode(false); }}
+              disabled={approveMutation.isPending || addingName}
             >
               Cancel
             </Button>
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handleConfirmConsultantApproval}
-              disabled={approveMutation.isPending || !selectedConsultantId}
+              disabled={approveMutation.isPending || addingName || (manualMode && !manualName.trim())}
             >
               <CheckCircle2 className="w-4 h-4 mr-1.5" />
-              {approveMutation.isPending ? "Approving…" : "Confirm & Approve"}
+              {approveMutation.isPending || addingName ? "Approving…" : "Confirm & Approve"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -64,6 +64,8 @@ import {
   getAuditsForConsultantAll,
   getUserByLinkedConsultantId,
   updateLinkedConsultant,
+  getConsultantNames,
+  addConsultantName,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -731,15 +733,30 @@ const auditRouter = router({
       return getAuditEvents(input.auditId);
     }),
 
+  /** Returns the canonical ENT consultant roster from the consultantNames table */
   consultants: protectedProcedure.query(async () => {
-    const consultants = await getApprovedConsultants();
-    return consultants.map((c) => ({
+    const names = await getConsultantNames();
+    return names.map((c) => ({
       id: c.id,
-      fullName: c.fullName ?? c.name ?? "",
+      fullName: `${c.title ? c.title + " " : ""}${c.fullName}`,
+      displayName: c.fullName,
       grade: c.grade ?? "",
-      email: c.email ?? "",
     }));
   }),
+
+  /** Admin: add a new name to the consultant roster */
+  addConsultantName: protectedProcedure
+    .input(z.object({
+      title: z.string().optional(),
+      fullName: z.string().min(2),
+      grade: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const admin = await getUserById(ctx.user.id);
+      if (!admin || admin.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await addConsultantName({ fullName: input.fullName, title: input.title, grade: input.grade });
+      return { success: true };
+    }),
 
   /**
    * Returns all non-draft audits assigned to the logged-in consultant (pending + approved + rejected),

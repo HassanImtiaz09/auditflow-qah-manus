@@ -1,0 +1,94 @@
+{
+  "query": "SELECT id, title, fullName, grade FROM consultantNames ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, title, fullName, grade FROM consultantNames ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Mr",
+      "fullName": "Costa Repanos",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "2",
+      "title": "Miss",
+      "fullName": "Ellie Sproson",
+      "grade": "Consultant — Paediatric and Laryngology"
+    },
+    {
+      "id": "3",
+      "title": "Mr",
+      "fullName": "Erik Nilssen",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "4",
+      "title": "Mr",
+      "fullName": "Hani Nasef",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "5",
+      "title": "Mr",
+      "fullName": "Stephen Hayes",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "6",
+      "title": "Mr",
+      "fullName": "Harish Vishwanathan",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "7",
+      "title": "Mr",
+      "fullName": "Tim Biggs",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "8",
+      "title": "Mr",
+      "fullName": "Jonathan Buckland",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "9",
+      "title": "Mr",
+      "fullName": "Matt Ward",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "10",
+      "title": "Mr",
+      "fullName": "Mike Pringle",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "11",
+      "title": "Mr",
+      "fullName": "Marcel Geyer",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "12",
+      "title": "Mr",
+      "fullName": "Florian Schmidt",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "13",
+      "title": "Mr",
+      "fullName": "Moe Alsalem",
+      "grade": "Consultant — Paediatric"
+    },
+    {
+      "id": "14",
+      "title": "Mr",
+      "fullName": "Rob Chessman",
+      "grade": "Consultant — Otology"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tfullName\tgrade\n1\tMr\tCosta Repanos\tConsultant — Head and Neck\n2\tMiss\tEllie Sproson\tConsultant — Paediatric and Laryngology\n3\tMr\tErik Nilssen\tConsultant — Rhinology\n4\tMr\tHani Nasef\tConsultant — Head and Neck\n5\tMr\tStephen Hayes\tConsultant — Rhinology\n6\tMr\tHarish Vishwanathan\tConsultant — Rhinology\n7\tMr\tTim Biggs\tConsultant — Rhinology\n8\tMr\tJonathan Buckland\tConsultant — Otology\n9\tMr\tMatt Ward\tConsultant — Head and Neck\n10\tMr\tMike Pringle\tConsultant — Otology\n11\tMr\tMarcel Geyer\tConsultant — Otology\n12\tMr\tFlorian Schmidt\tConsultant — Head and Neck\n13\tMr\tMoe Alsalem\tConsultant — Paediatric\n14\tMr\tRob Chessman\tConsultant — Otology\n",
+  "stderr": "",
+  "execution_time_ms": 269
+}

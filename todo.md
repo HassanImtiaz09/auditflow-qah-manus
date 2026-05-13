@@ -276,3 +276,14 @@
 - [x] Frontend: PendingApproval page — polls currentUser every 10s; when approved=true hard-redirects to / with a success toast
 - [x] Frontend: Notifications page — ShieldCheck icon, emerald colour, "Account Approved" label for account_approved notifications
 - [x] Vitest: approveUser triggers an in-app notification to the approved user (3 tests, 98 total)
+
+## Round 17 — Consultant Name List Fix
+
+- [x] Schema: create consultantNames table (id, title, fullName, grade, active, createdAt) separate from users
+- [x] Seed: insert the 14 ENT consultant names into consultantNames table via SQL
+- [x] Backend: expose audits.consultants procedure returning all active consultantNames rows
+- [x] Backend: add audits.addConsultantName procedure (admin only) for manual additions
+- [x] Frontend: UserApprovals dialog — populate dropdown from consultantNames table (always has 14 entries)
+- [x] Frontend: UserApprovals dialog — add "Name not on list? Enter manually" toggle with name + grade inputs
+- [x] Frontend: UserApprovals dialog — Confirm and Approve button always enabled (linking is optional)
+- [x] Frontend: UserApprovals dialog — manual entry adds name to consultantNames table and links it

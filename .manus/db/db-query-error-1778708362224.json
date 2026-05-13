@@ -1,0 +1,8 @@
+{
+  "query": "SELECT * FROM consultants LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT * FROM consultants LIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '436kjx9hnhs4dfqbn2ou96.consultants' doesn't exist"
+  ]
+}
