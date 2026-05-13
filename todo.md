@@ -50,3 +50,13 @@
 - [x] Audit trail — record event on archive mutation (archived / unarchived)
 - [x] Audit trail — Audit Registry detail panel: clicking a row expands a history timeline
 - [x] Audit trail — write vitest tests for history procedure
+
+## New Features (Round 5)
+
+- [x] Reassign notification — when admin reassigns an audit, send in-app notification to the newly assigned consultant
+- [x] Decide note field — align Approval Queue UI to pass `note` (not `comment`) to the decide mutation
+- [x] Decide note UI — add a text area in the Approval Queue approve/reject dialog so consultants can record a formal decision rationale
+- [x] Decision note appears in audit trail detail field
+- [x] Submitter notification on decide — when an audit is approved or rejected, notify the submitter via the notifications table
+- [x] PDF export with audit trail — add a "Export PDF" button in Audit Registry that generates a per-audit PDF including full audit trail
+- [x] Vitest tests for Round 5 backend changes (reassign notification, decide notification)

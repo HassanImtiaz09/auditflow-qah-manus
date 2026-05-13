@@ -1,5 +1,7 @@
 // AuditRegistry -- with expandable audit trail history panel
 import { useState } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -265,6 +267,100 @@ export default function AuditRegistry() {
 
   const isAdmin = currentUser?.auditRole === "admin";
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const exportPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const auditsWithHistory = await utils.audits.listWithHistory.fetch();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+
+      // Title block
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("QAH ENT Audit Registry", 14, 16);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(
+        `Portsmouth Hospitals University NHS Trust  ·  Exported ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`,
+        14,
+        22
+      );
+      doc.setTextColor(0);
+
+      let y = 30;
+
+      for (const audit of auditsWithHistory) {
+        // Check if we need a new page (leave 60 mm for at least the header + one row)
+        if (y > doc.internal.pageSize.getHeight() - 60) {
+          doc.addPage();
+          y = 14;
+        }
+
+        // Audit header
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${audit.refNumber}  —  ${audit.category ?? ""}`, 14, y);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(80);
+        const meta = [
+          audit.topic ? `Topic: ${audit.topic}` : null,
+          `Submitter: ${audit.submitterName ?? "—"} (${audit.submitterGrade ?? "—"})`,
+          `Supervisor: ${audit.supervisorName ?? "Unassigned"}`,
+          `Priority: ${audit.priority}`,
+          `Status: ${audit.status.toUpperCase()}`,
+          audit.submittedAt ? `Submitted: ${new Date(audit.submittedAt).toLocaleDateString("en-GB")}` : null,
+        ].filter(Boolean).join("   ·   ");
+        doc.text(meta, 14, y + 5);
+        doc.setTextColor(0);
+        y += 12;
+
+        // Audit trail table
+        if (audit.history.length > 0) {
+          autoTable(doc, {
+            startY: y,
+            head: [["Event", "Actor", "Detail", "Date / Time"]],
+            body: audit.history.map((ev) => [
+              ev.eventType.charAt(0).toUpperCase() + ev.eventType.slice(1),
+              ev.actorName ?? "System",
+              ev.detail ?? "",
+              new Date(ev.createdAt).toLocaleString("en-GB"),
+            ]),
+            theme: "striped",
+            headStyles: { fillColor: [15, 39, 68], fontSize: 7, textColor: 255 },
+            bodyStyles: { fontSize: 7 },
+            columnStyles: { 0: { cellWidth: 28 }, 3: { cellWidth: 40 } },
+            margin: { left: 14, right: 14 },
+            tableWidth: pageW - 28,
+          });
+          y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+        } else {
+          doc.setFontSize(7);
+          doc.setTextColor(120);
+          doc.text("No audit trail recorded.", 14, y);
+          doc.setTextColor(0);
+          y += 8;
+        }
+
+        // Separator line
+        doc.setDrawColor(220);
+        doc.line(14, y - 2, pageW - 14, y - 2);
+        y += 4;
+      }
+
+      doc.save(`audit-registry-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success("PDF exported successfully.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -296,6 +392,15 @@ export default function AuditRegistry() {
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="w-4 h-4 mr-1.5" />
             Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportPdf}
+            disabled={pdfLoading}
+          >
+            <FileText className="w-4 h-4 mr-1.5" />
+            {pdfLoading ? "Generating…" : "Export PDF"}
           </Button>
         </div>
       </div>

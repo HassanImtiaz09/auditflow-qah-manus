@@ -341,6 +341,7 @@ const auditRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "You are not the assigned supervisor for this audit." });
         }
       }
+      const auditForDecide = await getAuditById(input.auditId);
       await updateAudit(input.auditId, {
         status: input.decision,
         decisionNote: input.note ?? null,
@@ -355,6 +356,19 @@ const auditRouter = router({
         eventType: input.decision,
         detail: input.note ?? null,
       });
+      // Notify the submitter of the decision
+      if (auditForDecide && auditForDecide.submittedById) {
+        const deciderName = user.fullName ?? user.name ?? "Your supervisor";
+        const refNum = auditForDecide.refNumber;
+        const noteText = input.note ? ` Note: "${input.note}"` : "";
+        const msgVerb = input.decision === "approved" ? "approved" : "rejected";
+        await createNotification({
+          recipientId: auditForDecide.submittedById,
+          userId: user.id,
+          type: input.decision === "approved" ? "audit_approved" : "audit_rejected",
+          message: `Your audit ${refNum} has been ${msgVerb} by ${deciderName}.${noteText}`,
+        });
+      }
       return { success: true };
     }),
 
@@ -395,6 +409,7 @@ const auditRouter = router({
         }
         supervisorName = sup.fullName ?? sup.name ?? null;
       }
+      const auditForReassign = await getAuditById(input.auditId);
       await updateAudit(input.auditId, {
         supervisorId: input.supervisorId,
         supervisorName,
@@ -407,6 +422,17 @@ const auditRouter = router({
         eventType: "reassigned",
         detail: supervisorName ? `Reassigned to ${supervisorName}` : "Supervisor removed",
       });
+      // Notify the newly assigned consultant (if any)
+      if (input.supervisorId !== null && auditForReassign) {
+        const adminName = user.fullName ?? user.name ?? "An administrator";
+        const refNum = auditForReassign.refNumber;
+        await createNotification({
+          recipientId: input.supervisorId,
+          userId: user.id,
+          type: "audit_reassigned",
+          message: `${adminName} has assigned audit ${refNum} to you for review.`,
+        });
+      }
       return { success: true };
     }),
 
@@ -424,6 +450,19 @@ const auditRouter = router({
       grade: c.grade ?? "",
       email: c.email ?? "",
     }));
+  }),
+
+  /** Returns all audits each with their full audit trail — used for PDF export */
+  listWithHistory: protectedProcedure.query(async () => {
+    const all = await getAllAudits();
+    const withHistory = await Promise.all(
+      all.map(async (a) => ({
+        ...a,
+        collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+        history: await getAuditEvents(a.id),
+      }))
+    );
+    return withHistory;
   }),
 });
 

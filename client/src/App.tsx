@@ -23,6 +23,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Notifications from "./pages/Notifications";
 import { trpc } from "./lib/trpc";
 
 function AppRouter() {
@@ -96,6 +97,7 @@ function AppRouter() {
         <Route path="/decision-log" component={ConsultantDecisionLog} />
         <Route path="/users" component={UserManagement} />
         <Route path="/approvals" component={UserApprovals} />
+        <Route path="/notifications" component={Notifications} />
       </Switch>
     </AppLayout>
   );

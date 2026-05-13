@@ -19,6 +19,7 @@ import {
   LogOut,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
@@ -31,7 +32,7 @@ interface NavItem {
   consultantOnly?: boolean;
   adminOnly?: boolean;
   badge?: boolean;
-  badgeKey?: "pending" | "notif";
+  badgeKey?: "pending" | "notif" | "personal_notif";
 }
 
 interface NavSection {
@@ -69,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/decision-log",  label: "Decision Log",   icon: ShieldCheck,   consultantOnly: true },
       { path: "/users",         label: "User Management",icon: Users,         adminOnly: true },
       { path: "/approvals",     label: "User Approvals", icon: ClipboardCheck,adminOnly: true, badge: true, badgeKey: "notif" },
+      { path: "/notifications",  label: "Notifications",  icon: Bell,           badge: true, badgeKey: "personal_notif" },
     ],
   },
 ];
@@ -89,7 +91,14 @@ export default function AppLayout({ user, children, onLogout }: Props) {
   const { data: queue } = trpc.audits.myQueue.useQuery();
   const { data: notifications } = trpc.notifications.unread.useQuery();
   const pendingCount = queue?.length ?? 0;
-  const notifCount = notifications?.length ?? 0;
+  // Admin-facing notifications (consultant registrations, audit submissions)
+  const notifCount = notifications?.filter(n =>
+    n.type === "consultant_registered" || n.type === "audit_submitted"
+  ).length ?? 0;
+  // Personal notifications for the current user (approvals, rejections, reassignments)
+  const personalNotifCount = notifications?.filter(n =>
+    n.type === "audit_approved" || n.type === "audit_rejected" || n.type === "audit_reassigned"
+  ).length ?? 0;
 
   const filteredSections = NAV_SECTIONS.map((section) => ({
     ...section,
@@ -133,7 +142,10 @@ export default function AppLayout({ user, children, onLogout }: Props) {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = location === item.path;
-                const badgeVal = item.badgeKey === "notif" ? notifCount : pendingCount;
+                const badgeVal =
+                  item.badgeKey === "notif" ? notifCount
+                  : item.badgeKey === "personal_notif" ? personalNotifCount
+                  : pendingCount;
                 const showBadge = item.badge && badgeVal > 0;
                 return (
                   <Link
