@@ -41,6 +41,11 @@ export const users = mysqlTable("users", {
   approved: boolean("approved").default(false).notNull(),
   /** Whether the consultant role has been approved by admin */
   roleApproved: boolean("roleApproved").default(false).notNull(),
+  /**
+   * Links this user account to a named seeded consultant record (users.id of the seed consultant).
+   * Set by admin when approving a consultant registration.
+   */
+  linkedConsultantId: int("linkedConsultantId"),
 });
 
 export type User = typeof users.$inferSelect;

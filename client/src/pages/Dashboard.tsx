@@ -19,6 +19,7 @@ import {
   Pencil,
   Trash2,
   Send,
+  Gavel,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -55,6 +56,13 @@ export default function Dashboard() {
   const { data: myDrafts = [], isLoading: draftsLoading } = trpc.audits.myDrafts.useQuery();
   const { data: notifications = [], isLoading: notifsLoading } = trpc.notifications.unread.useQuery();
   const utils = trpc.useUtils();
+
+  // Consultant/admin: fetch queue grouped by status
+  const isConsultantOrAdmin = currentUser?.auditRole === "consultant" || currentUser?.auditRole === "admin";
+  const { data: consultantQueue, isLoading: queueLoading } = trpc.audits.myConsultantQueue.useQuery(
+    undefined,
+    { enabled: isConsultantOrAdmin }
+  );
 
   const markAllRead = trpc.notifications.markAllRead.useMutation({
     onSuccess: () => utils.notifications.unread.invalidate(),
@@ -280,6 +288,114 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Consultant / Admin queue section */}
+      {isConsultantOrAdmin && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Gavel className="w-4 h-4 text-purple-600" />
+            <h2 className="text-sm font-semibold text-foreground">Your Approval Queue</h2>
+          </div>
+          {queueLoading ? (
+            <p className="text-xs text-muted-foreground">Loading queue…</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Awaiting approval */}
+              <div
+                className="bg-amber-50 border border-amber-200 rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate("/approval-queue")}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Awaiting Approval</span>
+                  <Clock className="w-4 h-4 text-amber-500" />
+                </div>
+                <p className="text-3xl font-bold text-amber-700 leading-none">
+                  {consultantQueue?.pending.length ?? 0}
+                </p>
+                {(consultantQueue?.pending.length ?? 0) > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {consultantQueue!.pending.slice(0, 3).map((a) => (
+                      <li key={a.id} className="text-xs text-amber-800 truncate">
+                        {a.refNumber} — {a.topic ?? a.category}
+                      </li>
+                    ))}
+                    {consultantQueue!.pending.length > 3 && (
+                      <li className="text-xs text-amber-600 font-medium">
+                        +{consultantQueue!.pending.length - 3} more
+                      </li>
+                    )}
+                  </ul>
+                )}
+                <p className="text-[11px] text-amber-600 mt-2 flex items-center gap-0.5">
+                  View queue <ChevronRight className="w-3 h-3" />
+                </p>
+              </div>
+
+              {/* Approved */}
+              <div
+                className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate("/approval-queue")}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Approved</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                </div>
+                <p className="text-3xl font-bold text-emerald-700 leading-none">
+                  {consultantQueue?.approved.length ?? 0}
+                </p>
+                {(consultantQueue?.approved.length ?? 0) > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {consultantQueue!.approved.slice(0, 3).map((a) => (
+                      <li key={a.id} className="text-xs text-emerald-800 truncate">
+                        {a.refNumber} — {a.topic ?? a.category}
+                      </li>
+                    ))}
+                    {consultantQueue!.approved.length > 3 && (
+                      <li className="text-xs text-emerald-600 font-medium">
+                        +{consultantQueue!.approved.length - 3} more
+                      </li>
+                    )}
+                  </ul>
+                )}
+                <p className="text-[11px] text-emerald-600 mt-2 flex items-center gap-0.5">
+                  View history <ChevronRight className="w-3 h-3" />
+                </p>
+              </div>
+
+              {/* Rejected */}
+              <div
+                className="bg-red-50 border border-red-200 rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate("/approval-queue")}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Rejected</span>
+                  <XCircle className="w-4 h-4 text-red-500" />
+                </div>
+                <p className="text-3xl font-bold text-red-700 leading-none">
+                  {consultantQueue?.rejected.length ?? 0}
+                </p>
+                {(consultantQueue?.rejected.length ?? 0) > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {consultantQueue!.rejected.slice(0, 3).map((a) => (
+                      <li key={a.id} className="text-xs text-red-800 truncate">
+                        {a.refNumber} — {a.topic ?? a.category}
+                      </li>
+                    ))}
+                    {consultantQueue!.rejected.length > 3 && (
+                      <li className="text-xs text-red-600 font-medium">
+                        +{consultantQueue!.rejected.length - 3} more
+                      </li>
+                    )}
+                  </ul>
+                )}
+                <p className="text-[11px] text-red-600 mt-2 flex items-center gap-0.5">
+                  View history <ChevronRight className="w-3 h-3" />
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Drafts section */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">

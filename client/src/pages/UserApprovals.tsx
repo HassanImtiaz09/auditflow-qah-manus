@@ -1,19 +1,54 @@
 // UserApprovals — tRPC backend
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, User, ShieldCheck, Inbox } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CheckCircle2, XCircle, User, ShieldCheck, Inbox, LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 
+type PendingUser = {
+  id: number;
+  fullName?: string | null;
+  name?: string | null;
+  email?: string | null;
+  grade?: string | null;
+  title?: string | null;
+  auditRole: "clinician" | "consultant" | "admin";
+  createdAt: Date;
+};
+
 export default function UserApprovals() {
   const utils = trpc.useUtils();
   const { data: pendingUsers = [], isLoading } = trpc.users.pending.useQuery();
+  // Fetch the seeded consultant list for the picker
+  const { data: consultantList = [] } = trpc.audits.consultants.useQuery();
+
+  // Dialog state — which user is being approved as consultant
+  const [consultantDialog, setConsultantDialog] = useState<PendingUser | null>(null);
+  const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
 
   const approveMutation = trpc.users.approve.useMutation({
     onSuccess: () => {
-      toast.success("User approved.");
+      toast.success("User approved successfully.");
       utils.users.pending.invalidate();
       utils.users.all.invalidate();
+      setConsultantDialog(null);
+      setSelectedConsultantId("");
     },
     onError: err => toast.error(err.message),
   });
@@ -26,6 +61,25 @@ export default function UserApprovals() {
     onError: err => toast.error(err.message),
   });
 
+  function handleApprove(u: PendingUser) {
+    if (u.auditRole === "consultant") {
+      // Open the consultant-link dialog first
+      setConsultantDialog(u);
+      setSelectedConsultantId("");
+    } else {
+      // Non-consultant: approve immediately without linking
+      approveMutation.mutate({ userId: u.id });
+    }
+  }
+
+  function handleConfirmConsultantApproval() {
+    if (!consultantDialog) return;
+    approveMutation.mutate({
+      userId: consultantDialog.id,
+      linkedConsultantId: selectedConsultantId ? Number(selectedConsultantId) : null,
+    });
+  }
+
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
 
   return (
@@ -33,9 +87,11 @@ export default function UserApprovals() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold">User Approvals</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Review and approve new user registrations. Consultants require approval before they can access the Approval Queue.
+          Review and approve new user registrations. When approving a consultant, you will be asked
+          to link their account to a named consultant from the department list.
         </p>
       </div>
+
       {pendingUsers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Inbox className="w-12 h-12 text-muted-foreground/40 mb-3" />
@@ -62,6 +118,7 @@ export default function UserApprovals() {
                   </span>
                 )}
               </div>
+
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground">Grade / Role</span>
@@ -80,20 +137,25 @@ export default function UserApprovals() {
                   </p>
                 </div>
               </div>
+
               {u.auditRole === "consultant" && (
                 <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800">
                   <ShieldCheck className="w-3.5 h-3.5 inline mr-1.5" />
-                  Approving this user grants them access to the <strong>Approval Queue</strong>, where they can approve or reject audits assigned to them as supervising consultant.
+                  Approving this user grants them access to the{" "}
+                  <strong>Approval Queue</strong>. You will be asked to link their account to a
+                  named consultant so audits assigned to that consultant are routed correctly.
                 </div>
               )}
+
               <div className="mt-4 flex gap-3">
                 <Button
                   size="sm"
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => approveMutation.mutate({ userId: u.id })}
+                  onClick={() => handleApprove(u as PendingUser)}
                   disabled={approveMutation.isPending}
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" />Approve
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                  {u.auditRole === "consultant" ? "Approve & Link…" : "Approve"}
                 </Button>
                 <Button
                   size="sm"
@@ -109,6 +171,68 @@ export default function UserApprovals() {
           ))}
         </div>
       )}
+
+      {/* Consultant-link dialog */}
+      <Dialog open={!!consultantDialog} onOpenChange={(open) => { if (!open) { setConsultantDialog(null); setSelectedConsultantId(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-purple-600" />
+              Link Consultant Account
+            </DialogTitle>
+            <DialogDescription>
+              Select which named consultant from the department list this account belongs to.
+              Audits submitted with that consultant selected will be routed to this user for approval.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <p className="text-sm font-medium mb-1">
+              Approving: <span className="text-foreground font-semibold">{consultantDialog?.fullName ?? consultantDialog?.name}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">{consultantDialog?.email}</p>
+
+            <label className="text-sm font-medium block mb-1.5">
+              Link to consultant name <span className="text-muted-foreground font-normal">(required)</span>
+            </label>
+            <Select value={selectedConsultantId} onValueChange={setSelectedConsultantId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select consultant name…" />
+              </SelectTrigger>
+              <SelectContent>
+                {consultantList.map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.fullName}{c.grade ? ` — ${c.grade}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {consultantList.length === 0 && (
+              <p className="text-xs text-amber-600 mt-2">
+                No consultant names found in the system. You can still approve without linking.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => { setConsultantDialog(null); setSelectedConsultantId(""); }}
+              disabled={approveMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleConfirmConsultantApproval}
+              disabled={approveMutation.isPending || !selectedConsultantId}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+              {approveMutation.isPending ? "Approving…" : "Confirm & Approve"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -61,6 +61,8 @@ import {
   getMyAudits,
   getMyDraftAudits,
   deleteAudit,
+  getAuditsForConsultantAll,
+  getUserByLinkedConsultantId,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -470,6 +472,20 @@ const auditRouter = router({
         });
       }
 
+      // Notify the assigned consultant (if any) — find the user account linked to this consultant
+      if (audit.supervisorId) {
+        const consultantUser = await getUserByLinkedConsultantId(audit.supervisorId);
+        if (consultantUser) {
+          const submitterName = actor?.fullName ?? actor?.name ?? "A colleague";
+          await createNotification({
+            recipientId: consultantUser.id,
+            userId: ctx.user.id,
+            type: "audit_submitted",
+            message: `${submitterName} has registered audit "${audit.topic ?? audit.refNumber}" (${audit.refNumber}) and selected you as the supervising consultant. Please review it in your Approval Queue.`,
+          });
+        }
+      }
+
       return { success: true, refNumber: audit.refNumber };
     }),
 
@@ -550,7 +566,7 @@ const auditRouter = router({
         submittedAt: input.isDraft ? null : now,
       });
 
-      // Record audit trail event
+      // Record audit trail event and send notifications on final submission
       if (!input.isDraft) {
         await createAuditEvent({
           auditId: (audit as { id: number }).id,
@@ -559,6 +575,29 @@ const auditRouter = router({
           eventType: "submitted",
           detail: supervisorName ? `Assigned to ${supervisorName}` : null,
         });
+        // Notify admin
+        const adminUser = await getAdminUser();
+        if (adminUser) {
+          await createNotification({
+            recipientId: adminUser.id,
+            userId: user.id,
+            type: "audit_submitted",
+            message: `${user.fullName ?? "A user"} submitted audit: ${input.topic}`,
+          });
+        }
+        // Notify the assigned consultant (if any)
+        if (input.supervisorId) {
+          const consultantUser = await getUserByLinkedConsultantId(input.supervisorId);
+          if (consultantUser) {
+            const submitterName = user.fullName ?? user.name ?? "A colleague";
+            await createNotification({
+              recipientId: consultantUser.id,
+              userId: user.id,
+              type: "audit_submitted",
+              message: `${submitterName} has registered audit "${input.topic}" (${refNumber}) and selected you as the supervising consultant. Please review it in your Approval Queue.`,
+            });
+          }
+        }
       }
 
       return { success: true, refNumber, audit };
@@ -695,6 +734,33 @@ const auditRouter = router({
     }));
   }),
 
+  /**
+   * Returns all non-draft audits assigned to the logged-in consultant (pending + approved + rejected),
+   * grouped by status. Used for the consultant dashboard.
+   */
+  myConsultantQueue: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
+      return { pending: [], approved: [], rejected: [] };
+    }
+    // supervisorId on audits refers to the seeded consultant record's id.
+    // For a linked consultant account, use linkedConsultantId to look up their seeded record.
+    // For admin, fall back to user.id (admins are not linked to seeded consultants).
+    const lookupId = user.auditRole === "consultant" && user.linkedConsultantId
+      ? user.linkedConsultantId
+      : user.id;
+    const all = await getAuditsForConsultantAll(lookupId);
+    const mapped = all.map((a) => ({
+      ...a,
+      collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+    }));
+    return {
+      pending: mapped.filter((a) => a.status === "pending"),
+      approved: mapped.filter((a) => a.status === "approved"),
+      rejected: mapped.filter((a) => a.status === "rejected"),
+    };
+  }),
+
   /** Returns all audits each with their full audit trail — used for PDF export */
   listWithHistory: protectedProcedure.query(async () => {
     const all = await getAllAudits();
@@ -812,11 +878,15 @@ const usersRouter = router({
   }),
 
   approve: protectedProcedure
-    .input(z.object({ userId: z.number() }))
+    .input(z.object({
+      userId: z.number(),
+      /** For consultant accounts: link to a seeded consultant record by id */
+      linkedConsultantId: z.number().nullable().optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const user = await getUserById(ctx.user.id);
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      await approveUser(input.userId);
+      await approveUser(input.userId, input.linkedConsultantId);
       return { success: true };
     }),
 

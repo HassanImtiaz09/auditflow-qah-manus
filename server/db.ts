@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, like, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { auditComments, auditEvents, audits, InsertAuditComment, InsertAuditEvent, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -90,10 +90,33 @@ export async function getPendingUsers() {
     .orderBy(desc(users.createdAt));
 }
 
-export async function approveUser(id: number) {
+export async function approveUser(id: number, linkedConsultantId?: number | null) {
   const db = await getDb();
   if (!db) return;
-  await db.update(users).set({ approved: true, roleApproved: true }).where(eq(users.id, id));
+  if (linkedConsultantId !== undefined) {
+    await db.update(users).set({ approved: true, roleApproved: true, linkedConsultantId: linkedConsultantId ?? null }).where(eq(users.id, id));
+  } else {
+    await db.update(users).set({ approved: true, roleApproved: true }).where(eq(users.id, id));
+  }
+}
+
+/** Returns all audits assigned to a consultant (all statuses except draft) */
+export async function getAuditsForConsultantAll(consultantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(and(eq(audits.supervisorId, consultantId), ne(audits.status, "draft")))
+    .orderBy(desc(audits.createdAt));
+}
+
+/** Finds the user account that is linked to a given seeded consultant id */
+export async function getUserByLinkedConsultantId(linkedConsultantId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const r = await db.select().from(users).where(eq(users.linkedConsultantId, linkedConsultantId)).limit(1);
+  return r[0];
 }
 
 export async function rejectUser(id: number) {

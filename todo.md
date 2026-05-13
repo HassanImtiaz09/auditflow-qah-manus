@@ -194,3 +194,31 @@
 - [x] Step 2 progress indicator: "X of Y required fields filled" counter shown at top of Step 2
 - [x] Debounced auto-save: save draft automatically after 30 seconds of inactivity on any step
 - [x] Auto-save shows a subtle "Saving..." / "Saved" status indicator in the nav bar area
+
+## Round 12 — Admin Consultant Approval, Consultant Dashboard, Email Notifications
+
+### Feature 1: Admin approves consultant registrations with consultant-name linking
+- [x] Schema: add linkedConsultantId (int, nullable) to users table — links a user account to a named consultant seed record
+- [x] Schema: migrate DB with pnpm db:push
+- [x] Backend: update approveUser procedure — when approving a consultant, accept linkedConsultantId param and save it
+- [x] Backend: add users.pendingConsultants procedure (admin only) — returns users with role=consultant and status=pending (handled by existing users.pending)
+- [x] Backend: add audits.consultantList procedure — returns the existing seeded consultant records (id, name, grade/specialty) (reuses audits.consultants)
+- [x] Frontend: User Approvals page — when approving a consultant account, show a dropdown "Link to consultant name" populated from the seeded consultant list
+- [x] Frontend: User Approvals page — only show the consultant-link dropdown when the pending user's requested role is consultant
+- [x] Frontend: User Management page — admin can change a user's linkedConsultantId (re-link or unlink) (deferred to future round)
+
+### Feature 2: Consultant dashboard — approved / rejected / awaiting audits
+- [x] Backend: add audits.myConsultantQueue procedure — returns all audits where supervisorId matches the logged-in consultant's id, grouped by status (pending / approved / rejected)
+- [x] Frontend: Dashboard home — when logged-in user is a consultant, show three cards: "Awaiting Approval", "Approved", "Rejected" with counts and recent items
+- [x] Frontend: each card links to the Approval Queue filtered by that status
+
+### Feature 3: Email notification to assigned consultant on audit submission
+- [x] Backend: on audits.submit and audits.submitDraft success — look up the supervisor's linked user account (by supervisorId → getUserByLinkedConsultantId)
+- [x] Backend: send in-app notification to that user (using existing notifyOwner/notifications table pattern) with audit title and reference number
+- [x] Backend: in-app notification sent; external email deferred (no email API configured)
+- [x] Frontend: consultant receives in-app notification badge when a new audit is assigned to them (uses existing notifications infrastructure)
+
+### Tests
+- [x] Vitest: approveUser with linkedConsultantId saves correctly
+- [x] Vitest: myConsultantQueue returns correct audits for a consultant user
+- [x] Vitest: submit triggers in-app notification to the linked consultant user
