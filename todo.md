@@ -287,3 +287,33 @@
 - [x] Frontend: UserApprovals dialog — add "Name not on list? Enter manually" toggle with name + grade inputs
 - [x] Frontend: UserApprovals dialog — Confirm and Approve button always enabled (linking is optional)
 - [x] Frontend: UserApprovals dialog — manual entry adds name to consultantNames table and links it
+
+## Round 18 — Role-Specific Dashboards
+
+### Clinician Dashboard (existing users who submit audits)
+- [x] Keep current layout: quick stats (submitted/pending/approved/rejected), recent submissions, drafts, notifications
+- [x] Remove any admin/consultant-only widgets from clinician view
+- [x] CTA: "Submit New Audit" prominently visible
+
+### Consultant Dashboard (replaces current generic dashboard for consultants)
+- [x] Remove "Submit Audit" CTA — consultants do not submit
+- [x] Top section: three action cards — Awaiting My Review (count + list), Approved by Me (count), Rejected by Me (count)
+- [x] Approaching deadlines section: audits assigned to this consultant where auditEndDate is within 30 days and status=pending
+- [x] Recent activity: last 5 decisions made (approved/rejected with audit title and date)
+- [x] Quick link to Approval Queue
+
+### Admin Dashboard (replaces current generic dashboard for admin)
+- [x] Remove "Submit Audit" CTA — admin does not submit
+- [x] Top stats row: Total Registered Audits, Pending Review, Approved, Rejected, Drafts
+- [x] Audits per consultant table: for each consultant, show count of pending/approved/rejected audits assigned to them
+- [x] Approaching deadlines section: all audits (any consultant) where auditEndDate ≤ 30 days and status=pending, sorted by deadline
+- [x] Recent registrations: last 5 submitted audits across all users
+- [x] Pending user approvals badge/card: count of pending consultant registrations with link to User Approvals
+
+### Backend
+- [x] tRPC procedure: admin.overviewStats — total counts by status across all audits
+- [x] tRPC procedure: admin.auditsPerConsultant — for each consultantName, count pending/approved/rejected
+- [x] tRPC procedure: admin.approachingDeadlines — audits where auditEndDate ≤ now+30d and status=pending/approved
+- [x] tRPC procedure: admin.recentRegistrations — last 10 submitted audits (status != draft)
+- [x] tRPC procedure: admin.auditsPerConsultant covers consultant queue stats; myConsultantQueue used for consultant dashboard
+- [x] Vitest: 14 tests in round18.test.ts covering all four admin helpers (112 total)

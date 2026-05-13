@@ -92,11 +92,18 @@ export async function getConsultantNames() {
 }
 
 /** Adds a new name to the consultantNames roster */
-export async function addConsultantName(data: InsertConsultantName) {
+export async function addConsultantName(data: Omit<InsertConsultantName, 'createdAt'>) {
   const db = await getDb();
-  if (!db) return null;
-  const [result] = await db.insert(consultantNames).values(data);
-  return result;
+  if (!db) throw new Error('DB unavailable');
+  await db.insert(consultantNames).values({ ...data, createdAt: new Date() });
+  // Fetch the newly inserted row by fullName (most recent)
+  const rows = await db
+    .select()
+    .from(consultantNames)
+    .where(eq(consultantNames.fullName, data.fullName))
+    .orderBy(desc(consultantNames.id))
+    .limit(1);
+  return rows[0];
 }
 
 export async function getPendingUsers() {
@@ -246,6 +253,72 @@ export async function deleteAudit(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(audits).where(eq(audits.id, id));
+}
+
+// ─── Admin overview helpers ─────────────────────────────────────────────────
+
+/** Counts all audits grouped by status (excludes drafts) for admin overview */
+export async function getAdminOverviewStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, drafts: 0 };
+  const all = await db.select().from(audits);
+  return {
+    total: all.filter(a => a.status !== 'draft').length,
+    pending: all.filter(a => a.status === 'pending').length,
+    approved: all.filter(a => a.status === 'approved').length,
+    rejected: all.filter(a => a.status === 'rejected').length,
+    drafts: all.filter(a => a.status === 'draft').length,
+  };
+}
+
+/** For each consultant name in the roster, counts their pending/approved/rejected audits */
+export async function getAuditsPerConsultant() {
+  const db = await getDb();
+  if (!db) return [];
+  const names = await db.select().from(consultantNames).where(eq(consultantNames.active, true)).orderBy(consultantNames.fullName);
+  const allAudits = await db.select().from(audits).where(ne(audits.status, 'draft'));
+  return names.map(cn => ({
+    id: cn.id,
+    fullName: cn.fullName,
+    grade: cn.grade ?? null,
+    pending: allAudits.filter(a => a.supervisorId === cn.id && a.status === 'pending').length,
+    approved: allAudits.filter(a => a.supervisorId === cn.id && a.status === 'approved').length,
+    rejected: allAudits.filter(a => a.supervisorId === cn.id && a.status === 'rejected').length,
+    total: allAudits.filter(a => a.supervisorId === cn.id).length,
+  }));
+}
+
+/** Returns audits with auditEndDate within the next N days and status pending or approved */
+export async function getApproachingDeadlines(daysAhead = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+  const all = await db
+    .select()
+    .from(audits)
+    .where(and(
+      or(eq(audits.status, 'pending'), eq(audits.status, 'approved')),
+      ne(audits.status, 'draft'),
+    ))
+    .orderBy(audits.auditEndDate);
+  return all.filter(a => {
+    if (!a.auditEndDate) return false;
+    const d = new Date(a.auditEndDate);
+    return d >= now && d <= cutoff;
+  });
+}
+
+/** Returns the most recent N submitted audits (status != draft) across all users */
+export async function getRecentRegistrations(limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(ne(audits.status, 'draft'))
+    .orderBy(desc(audits.submittedAt))
+    .limit(limit);
 }
 
 // ─── Notification helpers ─────────────────────────────────────────────────────

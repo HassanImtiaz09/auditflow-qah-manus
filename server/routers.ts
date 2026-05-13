@@ -66,6 +66,10 @@ import {
   updateLinkedConsultant,
   getConsultantNames,
   addConsultantName,
+  getAdminOverviewStats,
+  getAuditsPerConsultant,
+  getApproachingDeadlines,
+  getRecentRegistrations,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -1056,7 +1060,64 @@ const notificationsRouter = router({
   }),
 });
 
-// ─── App Router ───────────────────────────────────────────────────────────────
+// ─── Admin Router ─────────────────────────────────────────────────────
+
+const adminRouter = router({
+  /** High-level counts: total, pending, approved, rejected, drafts */
+  overviewStats: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+    return getAdminOverviewStats();
+  }),
+
+  /** Per-consultant audit workload table */
+  auditsPerConsultant: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+    return getAuditsPerConsultant();
+  }),
+
+  /** Audits with auditEndDate within the next 30 days */
+  approachingDeadlines: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+    const raw = await getApproachingDeadlines(30);
+    return raw.map(a => ({
+      id: a.id,
+      refNumber: a.refNumber,
+      topic: a.topic,
+      category: a.category,
+      supervisorName: a.supervisorName,
+      submitterName: a.submitterName,
+      status: a.status,
+      priority: a.priority,
+      auditEndDate: a.auditEndDate,
+      daysRemaining: a.auditEndDate
+        ? Math.ceil((new Date(a.auditEndDate).getTime() - Date.now()) / 86400000)
+        : null,
+    }));
+  }),
+
+  /** Most recent 10 submitted audits across all users */
+  recentRegistrations: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+    const raw = await getRecentRegistrations(10);
+    return raw.map(a => ({
+      id: a.id,
+      refNumber: a.refNumber,
+      topic: a.topic,
+      category: a.category,
+      supervisorName: a.supervisorName,
+      submitterName: a.submitterName,
+      status: a.status,
+      priority: a.priority,
+      submittedAt: a.submittedAt,
+    }));
+  }),
+});
+
+// ─── App Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
   system: systemRouter,
@@ -1064,6 +1125,7 @@ export const appRouter = router({
   audits: auditRouter,
   users: usersRouter,
   notifications: notificationsRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
