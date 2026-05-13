@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AppUser } from "@/lib/store";
-import { getSubmissions, getAllUsers, setCurrentUser } from "@/lib/store";
+import { getSubmissions, getAllUsers, setCurrentUser, getUnreadNotificationCount } from "@/lib/store";
 import { ChevronDown } from "lucide-react";
 
 interface NavItem {
@@ -32,6 +32,7 @@ interface NavItem {
   consultantOnly?: boolean;
   adminOnly?: boolean;
   badge?: boolean;
+  badgeKey?: "pending" | "notif";
 }
 
 interface NavSection {
@@ -68,7 +69,7 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/settings",      label: "Settings",       icon: Settings,      consultantOnly: true },
       { path: "/decision-log",  label: "Decision Log",   icon: ShieldCheck,   consultantOnly: true },
       { path: "/users",         label: "User Management",icon: Users,         adminOnly: true },
-      { path: "/approvals",     label: "User Approvals", icon: ClipboardCheck,adminOnly: true },
+      { path: "/approvals",     label: "User Approvals", icon: ClipboardCheck,adminOnly: true, badge: true, badgeKey: "notif" },
     ],
   },
 ];
@@ -77,9 +78,10 @@ interface Props {
   user: AppUser;
   children: React.ReactNode;
   onUserSwitch?: (user: AppUser) => void;
+  onLogout?: () => void;
 }
 
-export default function AppLayout({ user, children, onUserSwitch }: Props) {
+export default function AppLayout({ user, children, onUserSwitch, onLogout }: Props) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -96,6 +98,7 @@ export default function AppLayout({ user, children, onUserSwitch }: Props) {
   const isAdmin = user.role === "admin";
 
   const pendingCount = getSubmissions().filter((s) => s.status === "pending").length;
+  const notifCount = getUnreadNotificationCount();
 
   const filteredSections = NAV_SECTIONS.map((section) => ({
     ...section,
@@ -139,7 +142,8 @@ export default function AppLayout({ user, children, onUserSwitch }: Props) {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = location === item.path;
-                const showBadge = item.badge && pendingCount > 0;
+                const badgeVal = item.badgeKey === "notif" ? notifCount : pendingCount;
+                const showBadge = item.badge && badgeVal > 0;
                 return (
                   <Link
                     key={item.path}
@@ -155,7 +159,7 @@ export default function AppLayout({ user, children, onUserSwitch }: Props) {
                     <span className="flex-1">{item.label}</span>
                     {showBadge && (
                       <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 min-w-[20px] flex items-center justify-center h-5 hover:bg-red-500">
-                        {pendingCount}
+                        {badgeVal}
                       </Badge>
                     )}
                   </Link>
@@ -205,10 +209,19 @@ export default function AppLayout({ user, children, onUserSwitch }: Props) {
           </div>
           <div className="flex-1 min-w-0 text-left">
             <p className="text-xs font-medium text-white truncate">{user.full_name}</p>
-            <p className="text-[10px] text-white/50 capitalize">{user.role}</p>
+            <p className="text-[10px] text-white/50 capitalize">{user.grade || user.role}</p>
           </div>
           <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform flex-shrink-0 ${switcherOpen ? "rotate-180" : ""}`} />
         </button>
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="mt-2 w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors text-[11px]"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign out</span>
+          </button>
+        )}
       </div>
     </div>
   );

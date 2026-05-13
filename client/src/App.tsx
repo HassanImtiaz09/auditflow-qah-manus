@@ -1,11 +1,11 @@
 // AuditFlow QAH — Main App
 // Design: NHS Clinical Precision — deep navy sidebar, cool off-white canvas
-// Uses local localStorage store for demo; no backend required
+// Uses local localStorage store; login/register flow with role-based access
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppLayout from "./components/layout/AppLayout";
@@ -20,16 +20,35 @@ import AuditCalendar from "./pages/AuditCalendar";
 import ConsultantDecisionLog from "./pages/ConsultantDecisionLog";
 import UserManagement from "./pages/UserManagement";
 import UserApprovals from "./pages/UserApprovals";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import { initStore, getCurrentUser, type AppUser } from "./lib/store";
 
-// Initialise store with seed data on first load
+// Initialise store with seed data on first load — must run before any auth check
 initStore();
 
-function AppContent() {
+/** Returns true only if there is a valid, fully-approved user in localStorage */
+function isSessionValid(): boolean {
+  try {
+    const raw = localStorage.getItem("auditflow_current_user");
+    if (!raw) return false;
+    const u = JSON.parse(raw) as AppUser;
+    if (!u || !u.id || !u.approved) return false;
+    if (u.role === "consultant" && !u.role_approved) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+interface AuthedAppProps {
+  onLogout: () => void;
+}
+
+function AuthedApp({ onLogout }: AuthedAppProps) {
   const [user, setUser] = useState<AppUser>(getCurrentUser);
   const [tick, setTick] = useState(0);
 
-  // Force re-render of all pages when data changes
   const handleRefresh = useCallback(() => setTick((n) => n + 1), []);
 
   const handleUserSwitch = (newUser: AppUser) => {
@@ -37,8 +56,13 @@ function AppContent() {
     handleRefresh();
   };
 
+  // Re-read current user from store on tick (in case it was updated externally)
+  useEffect(() => {
+    setUser(getCurrentUser());
+  }, [tick]);
+
   return (
-    <AppLayout user={user} key={user.id} onUserSwitch={handleUserSwitch}>
+    <AppLayout user={user} key={user.id} onUserSwitch={handleUserSwitch} onLogout={onLogout}>
       <div className="p-0" key={tick}>
         <Switch>
           <Route path="/">
@@ -80,13 +104,48 @@ function AppContent() {
   );
 }
 
+function AppRouter() {
+  const [authed, setAuthed] = useState(() => isSessionValid());
+  const [location] = useLocation();
+
+  const handleLogin = () => {
+    setAuthed(true);
+  };
+
+  const handleLogout = () => {
+    // Clear current user from localStorage so the session is truly ended
+    localStorage.removeItem("auditflow_current_user");
+    setAuthed(false);
+  };
+
+  const handleRegistered = () => {
+    setAuthed(true);
+  };
+
+  // If not authed and not on register, show login/register
+  if (!authed) {
+    return (
+      <Switch>
+        <Route path="/register">
+          <Register onRegistered={handleRegistered} />
+        </Route>
+        <Route>
+          <Login onLogin={handleLogin} />
+        </Route>
+      </Switch>
+    );
+  }
+
+  return <AuthedApp onLogout={handleLogout} />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster position="bottom-right" />
-          <AppContent />
+          <AppRouter />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

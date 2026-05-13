@@ -46,7 +46,21 @@ export interface AppUser {
   full_name: string;
   email: string;
   role: "clinician" | "consultant" | "admin";
+  /** The grade/title selected at registration (from GRADES list) */
+  grade?: string;
+  /** Whether the admin has approved this account */
   approved: boolean;
+  /** For consultants: whether the admin has confirmed their consultant role */
+  role_approved?: boolean;
+  created_date: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: "consultant_registration";
+  message: string;
+  user_id: string;
+  read: boolean;
   created_date: string;
 }
 
@@ -58,12 +72,17 @@ export interface AppSettings {
 }
 
 // ── Keys ────────────────────────────────────────────────────────────────────
+// Bump this version whenever the data schema changes to force a clean re-seed
+const STORE_VERSION = "v2-no-seed-audits";
+const VERSION_KEY = "auditflow_version";
+
 const SUBMISSIONS_KEY = "auditflow_submissions";
 const LOGS_KEY = "auditflow_logs";
 const USERS_KEY = "auditflow_users";
 const SETTINGS_KEY = "auditflow_settings";
 const COUNTER_KEY = "auditflow_counter";
 const CURRENT_USER_KEY = "auditflow_current_user";
+const NOTIFICATIONS_KEY = "auditflow_notifications";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function load<T>(key: string, fallback: T): T {
@@ -79,39 +98,17 @@ function save<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-// ── Seed data ────────────────────────────────────────────────────────────────
+// ── Seed data — users only, NO audit submissions ─────────────────────────────
 const SEED_USERS: AppUser[] = [
   {
     id: "u1",
     full_name: "Dr. Sarah Mitchell",
     email: "s.mitchell@porthosp.nhs.uk",
     role: "admin",
+    grade: "Consultant",
     approved: true,
+    role_approved: true,
     created_date: "2025-01-10T09:00:00Z",
-  },
-  {
-    id: "u2",
-    full_name: "Mr. James Hargreaves",
-    email: "j.hargreaves@porthosp.nhs.uk",
-    role: "consultant",
-    approved: true,
-    created_date: "2025-01-12T10:30:00Z",
-  },
-  {
-    id: "u3",
-    full_name: "Dr. Priya Nair",
-    email: "p.nair@porthosp.nhs.uk",
-    role: "clinician",
-    approved: true,
-    created_date: "2025-02-01T08:00:00Z",
-  },
-  {
-    id: "u4",
-    full_name: "Dr. Tom Ellison",
-    email: "t.ellison@porthosp.nhs.uk",
-    role: "clinician",
-    approved: false,
-    created_date: "2025-05-01T11:00:00Z",
   },
 ];
 
@@ -122,167 +119,38 @@ const SEED_SETTINGS: AppSettings = {
   prefix: "QAH",
 };
 
-const SEED_SUBMISSIONS: AuditSubmission[] = [
-  {
-    id: "s1",
-    ref: "REF-20250310-0001",
-    serial: "QAH-2025-OTO-0001",
-    status: "approved",
-    auditor: "Dr. Priya Nair",
-    grade: "Registrar (SpR)",
-    email: "p.nair@porthosp.nhs.uk",
-    type: "Otology",
-    setting: "Outpatient clinic",
-    priority: "Standard",
-    topic: "Hearing Aid Fitting Compliance",
-    period: "Jan-Mar 2025",
-    sample: "80 patients",
-    reaudit: "No",
-    description: "Assessing compliance rates for hearing aid fitting appointments in the audiology outpatient clinic against NICE guidelines.",
-    approved_by: "Mr. James Hargreaves",
-    approved_at: "2025-03-15T14:22:00Z",
-    archived: false,
-    created_date: "2025-03-10T09:15:00Z",
-  },
-  {
-    id: "s2",
-    ref: "REF-20250402-0002",
-    serial: "QAH-2025-RHI-0001",
-    status: "approved",
-    auditor: "Dr. Priya Nair",
-    grade: "Registrar (SpR)",
-    email: "p.nair@porthosp.nhs.uk",
-    type: "Rhinology",
-    setting: "Theatre / surgical",
-    priority: "High",
-    topic: "Septoplasty Outcomes",
-    period: "Feb-Apr 2025",
-    sample: "45 patients",
-    reaudit: "Yes - 1st re-audit",
-    description: "Re-audit of post-operative outcomes following septoplasty procedures, measuring against the 2023 baseline.",
-    approved_by: "Mr. James Hargreaves",
-    approved_at: "2025-04-08T11:05:00Z",
-    archived: false,
-    created_date: "2025-04-02T10:00:00Z",
-  },
-  {
-    id: "s3",
-    ref: "REF-20250415-0003",
-    status: "pending",
-    auditor: "Dr. Priya Nair",
-    grade: "Registrar (SpR)",
-    email: "p.nair@porthosp.nhs.uk",
-    type: "Head & Neck",
-    setting: "MDT meeting",
-    priority: "Urgent",
-    topic: "MDT Documentation Standards",
-    period: "Apr-Jun 2025",
-    sample: "60 cases",
-    reaudit: "No",
-    description: "Audit of MDT meeting documentation standards against Royal College of Surgeons guidelines, focusing on completeness of records.",
-    archived: false,
-    created_date: "2025-04-15T14:30:00Z",
-  },
-  {
-    id: "s4",
-    ref: "REF-20250420-0004",
-    status: "pending",
-    auditor: "Dr. Tom Ellison",
-    grade: "SHO / CT",
-    email: "t.ellison@porthosp.nhs.uk",
-    type: "General ENT",
-    setting: "Outpatient clinic",
-    priority: "Routine",
-    topic: "Tonsillectomy Referral Criteria",
-    period: "Mar-May 2025",
-    sample: "100 patients",
-    reaudit: "No",
-    description: "Review of tonsillectomy referral criteria adherence in the general ENT outpatient clinic.",
-    archived: false,
-    created_date: "2025-04-20T09:45:00Z",
-  },
-  {
-    id: "s5",
-    ref: "REF-20250501-0005",
-    status: "rejected",
-    auditor: "Dr. Priya Nair",
-    grade: "Registrar (SpR)",
-    email: "p.nair@porthosp.nhs.uk",
-    type: "Audiology",
-    setting: "Outpatient clinic",
-    priority: "Standard",
-    topic: "Paediatric Hearing Screening",
-    period: "May 2025",
-    sample: "30 patients",
-    reaudit: "No",
-    description: "Audit of paediatric hearing screening referral pathways.",
-    rejected_by: "Mr. James Hargreaves",
-    rejected_at: "2025-05-05T10:00:00Z",
-    rejection_reason: "Insufficient sample size proposed. Please revise to include at least 50 patients and resubmit.",
-    archived: false,
-    created_date: "2025-05-01T08:00:00Z",
-  },
-  {
-    id: "s6",
-    ref: "REF-20250505-0006",
-    status: "draft",
-    auditor: "Dr. Sarah Mitchell",
-    grade: "Consultant",
-    email: "s.mitchell@porthosp.nhs.uk",
-    type: "Thyroid & Endocrine",
-    setting: "Theatre / surgical",
-    priority: "High",
-    topic: "Thyroidectomy Complication Rates",
-    period: "Jun-Aug 2025",
-    sample: "55 patients",
-    reaudit: "No",
-    description: "Draft audit proposal for reviewing thyroidectomy complication rates against BAETS standards.",
-    archived: false,
-    created_date: "2025-05-05T16:00:00Z",
-  },
-];
-
-const SEED_LOGS: AuditHistoryLog[] = [
-  {
-    id: "l1",
-    submission_id: "s1",
-    submission_ref: "REF-20250310-0001",
-    event: "approved",
-    actor: "Mr. James Hargreaves",
-    actor_email: "j.hargreaves@porthosp.nhs.uk",
-    note: "Well-structured proposal with clear methodology.",
-    created_date: "2025-03-15T14:22:00Z",
-  },
-  {
-    id: "l2",
-    submission_id: "s2",
-    submission_ref: "REF-20250402-0002",
-    event: "approved",
-    actor: "Mr. James Hargreaves",
-    actor_email: "j.hargreaves@porthosp.nhs.uk",
-    note: "Good re-audit design. Approved for data collection.",
-    created_date: "2025-04-08T11:05:00Z",
-  },
-  {
-    id: "l3",
-    submission_id: "s5",
-    submission_ref: "REF-20250501-0005",
-    event: "rejected",
-    actor: "Mr. James Hargreaves",
-    actor_email: "j.hargreaves@porthosp.nhs.uk",
-    note: "Insufficient sample size proposed. Please revise to include at least 50 patients and resubmit.",
-    created_date: "2025-05-05T10:00:00Z",
-  },
-];
-
 // ── Initialise store if empty ─────────────────────────────────────────────────
 export function initStore(): void {
+  // If the store version doesn't match, wipe everything and re-seed
+  const storedVersion = localStorage.getItem(VERSION_KEY);
+  if (storedVersion !== STORE_VERSION) {
+    // Clear all keys
+    [
+      SUBMISSIONS_KEY, LOGS_KEY, USERS_KEY, SETTINGS_KEY,
+      COUNTER_KEY, CURRENT_USER_KEY, NOTIFICATIONS_KEY,
+    ].forEach((k) => localStorage.removeItem(k));
+    save(VERSION_KEY, STORE_VERSION);
+  }
+
   if (!localStorage.getItem(USERS_KEY)) save(USERS_KEY, SEED_USERS);
   if (!localStorage.getItem(SETTINGS_KEY)) save(SETTINGS_KEY, SEED_SETTINGS);
-  if (!localStorage.getItem(SUBMISSIONS_KEY)) save(SUBMISSIONS_KEY, SEED_SUBMISSIONS);
-  if (!localStorage.getItem(LOGS_KEY)) save(LOGS_KEY, SEED_LOGS);
-  if (!localStorage.getItem(COUNTER_KEY)) save(COUNTER_KEY, SEED_SUBMISSIONS.length);
+  if (!localStorage.getItem(SUBMISSIONS_KEY)) save(SUBMISSIONS_KEY, []);
+  if (!localStorage.getItem(LOGS_KEY)) save(LOGS_KEY, []);
+  if (!localStorage.getItem(COUNTER_KEY)) save(COUNTER_KEY, 0);
   if (!localStorage.getItem(CURRENT_USER_KEY)) save(CURRENT_USER_KEY, SEED_USERS[0]);
+  if (!localStorage.getItem(NOTIFICATIONS_KEY)) save(NOTIFICATIONS_KEY, []);
+}
+
+// ── Reset store (clear everything and re-seed) ────────────────────────────────
+export function resetStore(): void {
+  localStorage.removeItem(USERS_KEY);
+  localStorage.removeItem(SETTINGS_KEY);
+  localStorage.removeItem(SUBMISSIONS_KEY);
+  localStorage.removeItem(LOGS_KEY);
+  localStorage.removeItem(COUNTER_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem(NOTIFICATIONS_KEY);
+  initStore();
 }
 
 // ── Current user ─────────────────────────────────────────────────────────────
@@ -304,7 +172,7 @@ export function getSubmissions(): AuditSubmission[] {
 }
 
 export function getSubmissionByRef(ref: string): AuditSubmission | undefined {
-  return getSubmissions().find((s) => s.ref === ref);
+  return getSubmissions().find((s) => s.ref === ref || s.serial === ref);
 }
 
 export function createSubmission(
@@ -368,16 +236,86 @@ export function updateUserRole(userId: string, role: AppUser["role"]): void {
 }
 
 export function approveUser(userId: string): void {
-  const users = getAllUsers().map((u) => (u.id === userId ? { ...u, approved: true } : u));
+  const users = getAllUsers().map((u) =>
+    u.id === userId ? { ...u, approved: true, role_approved: true } : u
+  );
   save(USERS_KEY, users);
+  // Mark related notifications as read
+  const notifs = getNotifications().map((n) =>
+    n.user_id === userId ? { ...n, read: true } : n
+  );
+  save(NOTIFICATIONS_KEY, notifs);
 }
 
 export function rejectUser(userId: string): void {
   save(USERS_KEY, getAllUsers().filter((u) => u.id !== userId));
+  // Remove related notifications
+  save(NOTIFICATIONS_KEY, getNotifications().filter((n) => n.user_id !== userId));
 }
 
 export function addUser(user: Omit<AppUser, "id" | "created_date">): AppUser {
   const newUser: AppUser = { ...user, id: nanoid(), created_date: new Date().toISOString() };
   save(USERS_KEY, [...getAllUsers(), newUser]);
   return newUser;
+}
+
+/**
+ * Register a new user. If they select a consultant-level grade,
+ * their role is set to "consultant" but role_approved = false,
+ * and an admin notification is created.
+ */
+export function registerUser(data: {
+  full_name: string;
+  email: string;
+  grade: string;
+}): AppUser {
+  const CONSULTANT_GRADES = ["Consultant", "Associate Specialist"];
+  const isConsultant = CONSULTANT_GRADES.includes(data.grade);
+
+  const newUser: AppUser = {
+    id: nanoid(),
+    full_name: data.full_name,
+    email: data.email,
+    grade: data.grade,
+    role: isConsultant ? "consultant" : "clinician",
+    approved: !isConsultant, // clinicians are auto-approved; consultants need admin approval
+    role_approved: !isConsultant,
+    created_date: new Date().toISOString(),
+  };
+
+  save(USERS_KEY, [...getAllUsers(), newUser]);
+
+  // Create admin notification for consultant registrations
+  if (isConsultant) {
+    const notif: AppNotification = {
+      id: nanoid(),
+      type: "consultant_registration",
+      message: `${data.full_name} (${data.grade}) has registered and is requesting consultant access.`,
+      user_id: newUser.id,
+      read: false,
+      created_date: new Date().toISOString(),
+    };
+    save(NOTIFICATIONS_KEY, [...getNotifications(), notif]);
+  }
+
+  return newUser;
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export function getNotifications(): AppNotification[] {
+  return load<AppNotification[]>(NOTIFICATIONS_KEY, []);
+}
+
+export function getUnreadNotificationCount(): number {
+  return getNotifications().filter((n) => !n.read).length;
+}
+
+export function markNotificationRead(id: string): void {
+  const notifs = getNotifications().map((n) => (n.id === id ? { ...n, read: true } : n));
+  save(NOTIFICATIONS_KEY, notifs);
+}
+
+export function markAllNotificationsRead(): void {
+  const notifs = getNotifications().map((n) => ({ ...n, read: true }));
+  save(NOTIFICATIONS_KEY, notifs);
 }

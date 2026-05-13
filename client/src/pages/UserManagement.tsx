@@ -42,7 +42,8 @@ export default function UserManagement({ user, onRefresh }: Props) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [, forceUpdate] = useState(0);
 
-  const users = getAllUsers().filter((u) => u.approved);
+  // Only show users who are fully approved (approved=true AND if consultant, role_approved=true)
+  const users = getAllUsers().filter((u) => u.approved && (u.role !== "consultant" || u.role_approved));
 
   const filtered = users.filter((u) => {
     const term = search.toLowerCase();
@@ -107,6 +108,7 @@ export default function UserManagement({ user, onRefresh }: Props) {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">User</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Grade</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Current Role</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Joined</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Change Role</th>
@@ -128,6 +130,7 @@ export default function UserManagement({ user, onRefresh }: Props) {
                       </div>
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{u.grade || "—"}</td>
                   <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {format(new Date(u.created_date), "dd MMM yyyy")}
