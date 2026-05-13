@@ -92,3 +92,53 @@
 - [x] Profile — ProfileSettings page at /profile with personal details form and password change section
 - [x] Profile — sidebar nav link to /profile (visible to all users)
 - [x] Profile — vitest tests for updateProfile and changePassword procedures
+
+## Round 7 — Multi-Step Audit Registration Wizard & Drafts
+
+### Schema / Backend
+- [x] Extend audits table: add all clinical audit registration fields (54 columns total)
+- [x] Add status value 'draft' to audits table status enum
+- [x] Migrate DB with pnpm db:push
+- [x] Add/update DB helpers: getMyDraftAudits, deleteAudit
+- [x] tRPC procedure: audits.getDraft, myDrafts, updateDraft, deleteDraft, submitDraft
+- [x] tRPC procedure: audits.updateDraft (owner-only, records draft_saved event)
+- [x] tRPC procedure: audits.deleteDraft (owner-only)
+- [x] tRPC procedure: audits.myDrafts (returns all drafts for current user)
+- [x] tRPC procedure: audits.submitDraft (promotes draft to pending, triggers audit trail + admin notification)
+
+### Frontend — Multi-Step Wizard
+- [x] Refactor SubmitAudit.tsx into a multi-step wizard component
+- [x] Step 1: Basic details (audit title, service/specialty, supervising consultant)
+- [x] Step 2: Full audit registration form (all fields from clinical-audit-form.docx)
+  - [x] Reason for Audit (checkboxes: National/Regional/Local priorities + Other)
+  - [x] CQC Regulation field
+  - [x] Support Required (checkboxes)
+  - [x] Start Date / End Date
+  - [x] Audit Objectives (textarea)
+  - [x] Who will be involved and their role (textarea)
+  - [x] Audit Standards table (dynamic rows: standard, criteria, compliance %, exceptions)
+  - [x] Evidence base for standards (textarea)
+  - [x] Stakeholders (textarea + informed checkbox)
+  - [x] Data Source (checkboxes)
+  - [x] Data Collection Method (textarea)
+  - [x] Data Collection Timing (retrospective/prospective radio)
+  - [x] Data Collected By (text)
+  - [x] Sample Size (text)
+  - [x] Sampling Method (text)
+  - [x] Data Analysis description (textarea)
+  - [x] Data Analysed By (text)
+  - [x] Results Presentation (checkboxes: stakeholders, care team, service users, etc.)
+  - [x] Action Plan Owner (text)
+  - [x] Barriers to Change (textarea)
+  - [x] Re-audit Timeline (radio: N/A, 6 months, 12 months, Other)
+- [x] Step 3 (Review): Summary of all entered details, read-only, with 'Edit' links back to each section
+- [x] 'Save as Draft' button on all steps — saves progress without submitting
+- [x] 'Review and Submit' button on Step 2 — navigates to Step 3 summary
+- [x] 'Submit Now' button on Step 3 — submits the audit
+- [x] Progress indicator (step 1 / 2 / 3) at top of wizard
+
+### Frontend — Dashboard Drafts Section
+- [x] Dashboard: 'My Drafts' section showing draft audits with title, last-saved date
+- [x] Draft card: 'Continue Editing' button navigates to SubmitAudit wizard pre-filled with draft data
+- [x] Draft card: 'Delete' button with confirmation dialog
+- [x] Empty state when no drafts exist

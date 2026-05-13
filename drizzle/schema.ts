@@ -87,6 +87,60 @@ export const audits = mysqlTable("audits", {
   submittedAt: timestamp("submittedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+
+  // ── Step 2: Clinical Audit Registration Form fields ──────────────────────
+  /** JSON array of selected reasons: e.g. ["NICE","National audit","Other"] */
+  reasonForAudit: text("reasonForAudit"),
+  reasonForAuditOther: varchar("reasonForAuditOther", { length: 512 }),
+  /** CQC Regulation reference */
+  cqcRegulation: varchar("cqcRegulation", { length: 512 }),
+  /** Priority classification: national | regional | local */
+  priorityType: mysqlEnum("priorityType", ["national", "regional", "local"]),
+  priorityTypeOther: varchar("priorityTypeOther", { length: 512 }),
+  /** JSON array of support required options */
+  supportRequired: text("supportRequired"),
+  supportRequiredOther: varchar("supportRequiredOther", { length: 512 }),
+  /** Planned start date */
+  auditStartDate: timestamp("auditStartDate"),
+  /** Planned end date */
+  auditEndDate: timestamp("auditEndDate"),
+  /** What outcomes does this audit aim to achieve */
+  auditObjectives: text("auditObjectives"),
+  /** Who will be involved and their roles */
+  whoInvolved: text("whoInvolved"),
+  /** JSON array of {standard, criteria, compliance, exceptions} rows */
+  auditStandards: text("auditStandards"),
+  /** Evidence base for the standards (NICE, Royal Colleges, etc.) */
+  evidenceBase: text("evidenceBase"),
+  /** Stakeholder list (free text) */
+  stakeholders: text("stakeholders"),
+  /** Whether stakeholders have been informed */
+  stakeholdersInformed: boolean("stakeholdersInformed").default(false),
+  /** JSON array of data source options */
+  dataSource: text("dataSource"),
+  dataSourceOther: varchar("dataSourceOther", { length: 512 }),
+  /** Method of data collection (questionnaire, proforma, etc.) */
+  dataCollectionMethodDetail: text("dataCollectionMethodDetail"),
+  /** retrospective | prospective */
+  dataCollectionTiming: mysqlEnum("dataCollectionTiming", ["retrospective", "prospective"]),
+  /** Who will collect the data */
+  dataCollectedBy: varchar("dataCollectedBy", { length: 512 }),
+  /** Sampling method description */
+  samplingMethodDetail: text("samplingMethodDetail"),
+  /** Data analysis description */
+  dataAnalysisDetail: text("dataAnalysisDetail"),
+  /** Who will analyse the data */
+  dataAnalysedBy: varchar("dataAnalysedBy", { length: 512 }),
+  /** JSON array of results presentation targets */
+  resultsPresentation: text("resultsPresentation"),
+  resultsPresentationOther: varchar("resultsPresentationOther", { length: 512 }),
+  /** Who is responsible for the action plan */
+  actionPlanOwner: varchar("actionPlanOwner", { length: 512 }),
+  /** Potential barriers to change */
+  barriersToChange: text("barriersToChange"),
+  /** Re-audit timeline: na | 6months | 12months | other */
+  reAuditTimeline: mysqlEnum("reAuditTimeline", ["na", "6months", "12months", "other"]),
+  reAuditTimelineOther: varchar("reAuditTimelineOther", { length: 256 }),
 });
 
 export type Audit = typeof audits.$inferSelect;

@@ -1,6 +1,6 @@
 /**
  * Dashboard — personal home page for all authenticated users.
- * Shows quick stats, recent submissions, unread notifications, and a CTA to submit a new audit.
+ * Shows quick stats, recent submissions, unread notifications, drafts, and a CTA to submit a new audit.
  */
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -16,8 +16,12 @@ import {
   ChevronRight,
   FileText,
   Inbox,
+  Pencil,
+  Trash2,
+  Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
@@ -48,6 +52,7 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const { data: currentUser } = trpc.auth.currentUser.useQuery();
   const { data: myAudits = [], isLoading: auditsLoading } = trpc.audits.mySubmissions.useQuery();
+  const { data: myDrafts = [], isLoading: draftsLoading } = trpc.audits.myDrafts.useQuery();
   const { data: notifications = [], isLoading: notifsLoading } = trpc.notifications.unread.useQuery();
   const utils = trpc.useUtils();
 
@@ -59,14 +64,32 @@ export default function Dashboard() {
     onSuccess: () => utils.notifications.unread.invalidate(),
   });
 
-  // Compute quick stats
-  const total = myAudits.length;
-  const pending = myAudits.filter((a) => a.status === "pending").length;
-  const approved = myAudits.filter((a) => a.status === "approved").length;
-  const rejected = myAudits.filter((a) => a.status === "rejected").length;
+  const deleteDraft = trpc.audits.deleteDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Draft deleted");
+      utils.audits.myDrafts.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
-  // Recent 5 submissions (newest first)
-  const recent = [...myAudits]
+  const submitDraft = trpc.audits.submitDraft.useMutation({
+    onSuccess: (res) => {
+      toast.success(`Audit submitted — ${res.refNumber}`);
+      utils.audits.myDrafts.invalidate();
+      utils.audits.mySubmissions.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Compute quick stats (exclude drafts from counts)
+  const submitted = myAudits.filter((a) => a.status !== "draft");
+  const total = submitted.length;
+  const pending = submitted.filter((a) => a.status === "pending").length;
+  const approved = submitted.filter((a) => a.status === "approved").length;
+  const rejected = submitted.filter((a) => a.status === "rejected").length;
+
+  // Recent 5 submissions (newest first, exclude drafts)
+  const recent = [...submitted]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
@@ -121,7 +144,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         {/* Recent submissions */}
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -256,6 +279,89 @@ export default function Dashboard() {
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Drafts section */}
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-semibold">Saved Drafts</span>
+            {myDrafts.length > 0 && (
+              <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none border border-slate-200">
+                {myDrafts.length}
+              </span>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 text-muted-foreground"
+            onClick={() => navigate("/submit")}
+          >
+            <Plus className="w-3.5 h-3.5 mr-0.5" />New draft
+          </Button>
+        </div>
+
+        {draftsLoading ? (
+          <p className="text-xs text-muted-foreground p-4">Loading…</p>
+        ) : myDrafts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+            <FileText className="w-7 h-7" />
+            <p className="text-xs">No saved drafts. Start an audit and save it to continue later.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {myDrafts.map((d) => (
+              <li key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+                <div className="min-w-0 flex-1 mr-3">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {d.topic || "Untitled Draft"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {d.category}{d.clinicalSetting ? ` · ${d.clinicalSetting}` : ""}
+                    {" · "}Saved {formatDistanceToNow(new Date(d.createdAt), { addSuffix: true })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => navigate(`/submit?draftId=${d.id}`)}
+                    title="Continue editing"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => submitDraft.mutate({ auditId: d.id })}
+                    disabled={submitDraft.isPending}
+                    title="Submit this draft"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1" />Submit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                    onClick={() => {
+                      if (confirm("Delete this draft? This cannot be undone.")) {
+                        deleteDraft.mutate({ auditId: d.id });
+                      }
+                    }}
+                    disabled={deleteDraft.isPending}
+                    title="Delete draft"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

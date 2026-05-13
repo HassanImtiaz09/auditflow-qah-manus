@@ -58,6 +58,9 @@ import {
   createAuditComment,
   getAuditComments,
   updateUserProfile,
+  getMyAudits,
+  getMyDraftAudits,
+  deleteAudit,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -253,6 +256,193 @@ const auditRouter = router({
       const a = await getAuditByRef(input.ref);
       if (!a) return null;
       return { ...a, collaborators: a.collaborators ? JSON.parse(a.collaborators) : [] };
+    }),
+
+  /** Returns a single draft audit by ID (owner only) */
+  getDraft: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Not a draft." });
+      return {
+        ...audit,
+        collaborators: audit.collaborators ? JSON.parse(audit.collaborators) : [],
+        reasonForAudit: audit.reasonForAudit ? JSON.parse(audit.reasonForAudit) : [],
+        supportRequired: audit.supportRequired ? JSON.parse(audit.supportRequired) : [],
+        dataSource: audit.dataSource ? JSON.parse(audit.dataSource) : [],
+        resultsPresentation: audit.resultsPresentation ? JSON.parse(audit.resultsPresentation) : [],
+        auditStandards: audit.auditStandards ? JSON.parse(audit.auditStandards) : [],
+      };
+    }),
+
+  /** Returns the current user's own draft audits */
+  myDrafts: protectedProcedure.query(async ({ ctx }) => {
+    const drafts = await getMyDraftAudits(ctx.user.id);
+    return drafts.map((a) => ({
+      ...a,
+      collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+      reasonForAudit: a.reasonForAudit ? JSON.parse(a.reasonForAudit) : [],
+      supportRequired: a.supportRequired ? JSON.parse(a.supportRequired) : [],
+      dataSource: a.dataSource ? JSON.parse(a.dataSource) : [],
+      resultsPresentation: a.resultsPresentation ? JSON.parse(a.resultsPresentation) : [],
+      auditStandards: a.auditStandards ? JSON.parse(a.auditStandards) : [],
+    }));
+  }),
+
+  /** Returns the current user's own submitted/approved/rejected audits (non-draft) */
+  mySubmissions: protectedProcedure.query(async ({ ctx }) => {
+    const all = await getMyAudits(ctx.user.id);
+    return all
+      .filter((a) => a.status !== "draft")
+      .map((a) => ({
+        ...a,
+        collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+      }));
+  }),
+
+  /** Delete a draft audit (owner only) */
+  deleteDraft: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft audits can be deleted." });
+      await deleteAudit(input.auditId);
+      return { success: true };
+    }),
+
+  /** Update a draft audit with new field values (owner only, draft status only) */
+  updateDraft: protectedProcedure
+    .input(
+      z.object({
+        auditId: z.number(),
+        // Step 1 fields
+        category: z.string().optional(),
+        clinicalSetting: z.string().optional(),
+        priority: z.enum(["Routine", "Standard", "High", "Urgent"]).optional(),
+        reaudit: z.string().optional(),
+        topic: z.string().optional(),
+        dataCollectionPeriod: z.string().optional(),
+        expectedSampleSize: z.string().optional(),
+        collaborators: z.array(z.string()).optional(),
+        description: z.string().optional(),
+        supervisorId: z.number().nullable().optional(),
+        // Step 2 fields
+        reasonForAudit: z.array(z.string()).optional(),
+        reasonForAuditOther: z.string().optional(),
+        cqcRegulation: z.string().optional(),
+        priorityType: z.enum(["national", "regional", "local"]).nullable().optional(),
+        priorityTypeOther: z.string().optional(),
+        supportRequired: z.array(z.string()).optional(),
+        supportRequiredOther: z.string().optional(),
+        auditStartDate: z.date().nullable().optional(),
+        auditEndDate: z.date().nullable().optional(),
+        auditObjectives: z.string().optional(),
+        whoInvolved: z.string().optional(),
+        auditStandards: z.array(z.object({
+          standard: z.string(),
+          criteria: z.string(),
+          compliance: z.string(),
+          exceptions: z.string(),
+        })).optional(),
+        evidenceBase: z.string().optional(),
+        stakeholders: z.string().optional(),
+        stakeholdersInformed: z.boolean().optional(),
+        dataSource: z.array(z.string()).optional(),
+        dataSourceOther: z.string().optional(),
+        dataCollectionMethodDetail: z.string().optional(),
+        dataCollectionTiming: z.enum(["retrospective", "prospective"]).nullable().optional(),
+        dataCollectedBy: z.string().optional(),
+        samplingMethodDetail: z.string().optional(),
+        dataAnalysisDetail: z.string().optional(),
+        dataAnalysedBy: z.string().optional(),
+        resultsPresentation: z.array(z.string()).optional(),
+        resultsPresentationOther: z.string().optional(),
+        actionPlanOwner: z.string().optional(),
+        barriersToChange: z.string().optional(),
+        reAuditTimeline: z.enum(["na", "6months", "12months", "other"]).nullable().optional(),
+        reAuditTimelineOther: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft audits can be updated this way." });
+
+      const { auditId, collaborators, reasonForAudit, supportRequired, dataSource, resultsPresentation, auditStandards, supervisorId, ...rest } = input;
+
+      // Resolve supervisor name if supervisorId changed
+      let supervisorName: string | null | undefined = undefined;
+      if (supervisorId !== undefined) {
+        if (supervisorId === null) {
+          supervisorName = null;
+        } else {
+          const sup = await getUserById(supervisorId);
+          supervisorName = sup ? (sup.fullName ?? sup.name ?? null) : null;
+        }
+      }
+
+      const updateData: Record<string, unknown> = { ...rest };
+      if (collaborators !== undefined) updateData.collaborators = JSON.stringify(collaborators);
+      if (reasonForAudit !== undefined) updateData.reasonForAudit = JSON.stringify(reasonForAudit);
+      if (supportRequired !== undefined) updateData.supportRequired = JSON.stringify(supportRequired);
+      if (dataSource !== undefined) updateData.dataSource = JSON.stringify(dataSource);
+      if (resultsPresentation !== undefined) updateData.resultsPresentation = JSON.stringify(resultsPresentation);
+      if (auditStandards !== undefined) updateData.auditStandards = JSON.stringify(auditStandards);
+      if (supervisorId !== undefined) { updateData.supervisorId = supervisorId; updateData.supervisorName = supervisorName; }
+
+      await updateAudit(input.auditId, updateData as Parameters<typeof updateAudit>[1]);
+
+      // Record draft_saved event
+      const actor = await getUserById(ctx.user.id);
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: ctx.user.id,
+        actorName: actor?.fullName ?? actor?.name ?? "Unknown",
+        eventType: "draft_saved",
+        detail: null,
+      });
+
+      return { success: true };
+    }),
+
+  /** Promote a draft to submitted (triggers audit trail event) */
+  submitDraft: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Audit is not a draft." });
+      if (!audit.topic || audit.topic.length < 3) throw new TRPCError({ code: "BAD_REQUEST", message: "Audit title is required before submitting." });
+
+      await updateAudit(input.auditId, { status: "pending", submittedAt: new Date() });
+
+      const actor = await getUserById(ctx.user.id);
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: ctx.user.id,
+        actorName: actor?.fullName ?? actor?.name ?? "Unknown",
+        eventType: "submitted",
+        detail: audit.supervisorName ? `Assigned to ${audit.supervisorName}` : null,
+      });
+
+      // Notify admin
+      const admin = await getAdminUser();
+      if (admin) {
+        await createNotification({
+          recipientId: admin.id,
+          userId: ctx.user.id,
+          type: "audit_submitted",
+          message: `${actor?.fullName ?? "A user"} submitted audit: ${audit.topic ?? audit.refNumber}`,
+        });
+      }
+
+      return { success: true, refNumber: audit.refNumber };
     }),
 
   submit: protectedProcedure
@@ -466,17 +656,6 @@ const auditRouter = router({
       }))
     );
     return withHistory;
-  }),
-
-  /** Returns the current user's own submitted audits (all statuses, newest first) */
-  mySubmissions: protectedProcedure.query(async ({ ctx }) => {
-    const all = await getAllAudits();
-    return all
-      .filter((a) => a.submittedById === ctx.user.id)
-      .map((a) => ({
-        ...a,
-        collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
-      }));
   }),
 
   /** Fetch all comments for a given audit */

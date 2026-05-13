@@ -1,0 +1,29 @@
+ALTER TABLE `audits` ADD `reasonForAudit` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `reasonForAuditOther` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `cqcRegulation` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `priorityType` enum('national','regional','local');--> statement-breakpoint
+ALTER TABLE `audits` ADD `priorityTypeOther` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `supportRequired` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `supportRequiredOther` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `auditStartDate` timestamp;--> statement-breakpoint
+ALTER TABLE `audits` ADD `auditEndDate` timestamp;--> statement-breakpoint
+ALTER TABLE `audits` ADD `auditObjectives` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `whoInvolved` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `auditStandards` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `evidenceBase` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `stakeholders` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `stakeholdersInformed` boolean DEFAULT false;--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataSource` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataSourceOther` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataCollectionMethodDetail` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataCollectionTiming` enum('retrospective','prospective');--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataCollectedBy` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `samplingMethodDetail` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataAnalysisDetail` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `dataAnalysedBy` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `resultsPresentation` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `resultsPresentationOther` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `actionPlanOwner` varchar(512);--> statement-breakpoint
+ALTER TABLE `audits` ADD `barriersToChange` text;--> statement-breakpoint
+ALTER TABLE `audits` ADD `reAuditTimeline` enum('na','6months','12months','other');--> statement-breakpoint
+ALTER TABLE `audits` ADD `reAuditTimelineOther` varchar(256);

@@ -173,6 +173,32 @@ export async function updateAudit(id: number, data: Partial<typeof audits.$infer
   return getAuditById(id);
 }
 
+export async function getMyAudits(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(eq(audits.submittedById, userId))
+    .orderBy(desc(audits.createdAt));
+}
+
+export async function getMyDraftAudits(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(and(eq(audits.submittedById, userId), eq(audits.status, "draft")))
+    .orderBy(desc(audits.updatedAt));
+}
+
+export async function deleteAudit(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(audits).where(eq(audits.id, id));
+}
+
 // ─── Notification helpers ─────────────────────────────────────────────────────
 
 export async function getAdminUser() {
