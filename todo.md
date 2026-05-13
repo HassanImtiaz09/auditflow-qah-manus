@@ -142,3 +142,27 @@
 - [x] Draft card: 'Continue Editing' button navigates to SubmitAudit wizard pre-filled with draft data
 - [x] Draft card: 'Delete' button with confirmation dialog
 - [x] Empty state when no drafts exist
+
+## Round 8 — Standards Auto-complete, PDF Export, Re-audit Linking
+
+### Standards Auto-complete
+- [x] Create shared/auditStandards.ts with specialty-keyed NICE/RCSENG standard presets (Head and Neck, Otology, Rhinology, Paediatric)
+- [x] tRPC procedure: audits.standardPresets(specialty) — returns preset standards for a given specialty
+- [x] Step 2 wizard: "Load Presets" button above audit standards table — fetches presets and pre-populates rows
+- [x] Step 2 wizard: "Load Preset" button opens Command popover filtered by consultant specialty
+
+### Re-audit Linking
+- [x] Schema: add linkedAuditId (int, nullable FK to audits.id) and linkedAuditRef (text, nullable) to audits table
+- [x] Migrate DB with pnpm db:push
+- [x] tRPC procedure: audits.searchByRef(query) — returns matching audits by ref number or title (for search field)
+- [x] Step 1 wizard: when reaudit === "Yes", show a search-by-ref combobox to select the parent audit
+- [x] Audit Registry: show linked parent ref as a badge/link in the expanded row
+
+### PDF Registration Form Export
+- [x] Step 3 review: "Download Registration Form" button generates a formatted PDF matching QAH clinical audit registration form layout
+- [x] PDF includes: all Step 1 and Step 2 fields, audit standards table, submitter details, date generated
+- [x] PDF uses jsPDF (already installed) with QAH branding header
+
+### Tests
+- [x] Vitest tests for audits.standardPresets procedure
+- [x] Vitest tests for audits.searchByRef procedure

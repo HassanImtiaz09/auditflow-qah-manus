@@ -64,6 +64,7 @@ import {
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
+import { getStandardPresets } from "../shared/auditStandards";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -673,6 +674,36 @@ const auditRouter = router({
         audit.supervisorId === actor.id;
       if (!isAllowed) throw new TRPCError({ code: "FORBIDDEN" });
       return getAuditComments(input.auditId);
+    }),
+
+  /** Return specialty-specific audit standard presets */
+  standardPresets: protectedProcedure
+    .input(z.object({ specialty: z.string() }))
+    .query(({ input }) => {
+      return getStandardPresets(input.specialty);
+    }),
+
+  /** Search audits by reference number or title (for re-audit linking) */
+  searchByRef: protectedProcedure
+    .input(z.object({ query: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const all = await getAllAudits();
+      const q = input.query.toLowerCase();
+      return all
+        .filter(
+          (a) =>
+            a.status !== "draft" &&
+            (a.refNumber?.toLowerCase().includes(q) ||
+              a.topic?.toLowerCase().includes(q))
+        )
+        .slice(0, 10)
+        .map((a) => ({
+          id: a.id,
+          refNumber: a.refNumber,
+          topic: a.topic ?? "",
+          status: a.status,
+          submitterName: a.submitterName ?? "",
+        }));
     }),
 
   /** Post a new comment on an audit */

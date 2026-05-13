@@ -141,6 +141,12 @@ export const audits = mysqlTable("audits", {
   /** Re-audit timeline: na | 6months | 12months | other */
   reAuditTimeline: mysqlEnum("reAuditTimeline", ["na", "6months", "12months", "other"]),
   reAuditTimelineOther: varchar("reAuditTimelineOther", { length: 256 }),
+
+  // ── Re-audit linking ──────────────────────────────────────────────────────
+  /** FK → audits.id (the previous audit this is a re-audit of) — nullable */
+  linkedAuditId: int("linkedAuditId"),
+  /** Denormalised ref number of the linked parent audit for display */
+  linkedAuditRef: varchar("linkedAuditRef", { length: 64 }),
 });
 
 export type Audit = typeof audits.$inferSelect;

@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Save, Send, Plus, X, ChevronRight, ChevronLeft, CheckCircle2, Trash2, FileText } from "lucide-react";
+import { Save, Send, Plus, X, ChevronRight, ChevronLeft, CheckCircle2, Trash2, FileText, ChevronsUpDown, Check, BookOpen } from "lucide-react";
 import { AUDIT_CATEGORIES, CLINICAL_SETTINGS, PRIORITIES, GRADES, REAUDIT_OPTIONS } from "@/lib/auditConstants";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { trpc } from "@/lib/trpc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,6 +70,9 @@ interface WizardData {
   barriersToChange: string;
   reAuditTimeline: "na" | "6months" | "12months" | "other" | "";
   reAuditTimelineOther: string;
+  // Re-audit linking
+  linkedAuditId: number | null;
+  linkedAuditRef: string;
 }
 
 const EMPTY_STANDARD: AuditStandardRow = { standard: "", criteria: "", compliance: "", exceptions: "" };
@@ -85,6 +90,7 @@ const EMPTY_WIZARD: WizardData = {
   samplingMethodDetail: "", dataAnalysisDetail: "", dataAnalysedBy: "",
   resultsPresentation: [], resultsPresentationOther: "", actionPlanOwner: "",
   barriersToChange: "", reAuditTimeline: "", reAuditTimelineOther: "",
+  linkedAuditId: null, linkedAuditRef: "",
 };
 
 const REASON_OPTIONS = [
@@ -169,6 +175,12 @@ function Step1({
   consultants: { id: number; fullName: string; grade: string }[];
 }) {
   const [newCollab, setNewCollab] = useState("");
+  const [reauditSearch, setReauditSearch] = useState(data.linkedAuditRef || "");
+  const [reauditOpen, setReauditOpen] = useState(false);
+  const { data: reauditResults = [] } = trpc.audits.searchByRef.useQuery(
+    { query: reauditSearch },
+    { enabled: reauditSearch.length >= 2 }
+  );
   const addC = () => {
     const t = newCollab.trim();
     if (!t) return;
@@ -248,11 +260,65 @@ function Step1({
           </div>
           <div>
             <Label className="text-xs">Re-audit?</Label>
-            <Select value={data.reaudit} onValueChange={v => onChange({ reaudit: v })}>
+            <Select value={data.reaudit} onValueChange={v => {
+              onChange({ reaudit: v });
+              if (v !== "Yes") onChange({ linkedAuditId: null, linkedAuditRef: "" });
+            }}>
               <SelectTrigger className="mt-1 text-[13px]"><SelectValue /></SelectTrigger>
               <SelectContent>{REAUDIT_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          {data.reaudit === "Yes" && (
+            <div className="md:col-span-2">
+              <Label className="text-xs">Link to Previous Audit</Label>
+              <p className="text-[11px] text-muted-foreground mb-1">Search by reference number or title to link this re-audit to its predecessor.</p>
+              {data.linkedAuditRef ? (
+                <div className="flex items-center gap-2 mt-1 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <span className="text-xs font-mono text-blue-700">{data.linkedAuditRef}</span>
+                  <button type="button" className="ml-auto text-muted-foreground hover:text-foreground" onClick={() => { onChange({ linkedAuditId: null, linkedAuditRef: "" }); setReauditSearch(""); }}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <Popover open={reauditOpen} onOpenChange={setReauditOpen}>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="mt-1 w-full justify-start text-muted-foreground">
+                      <ChevronsUpDown className="w-3.5 h-3.5 mr-2" />Search previous audits...
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[420px] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Type ref number or title..."
+                        value={reauditSearch}
+                        onValueChange={setReauditSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>{reauditSearch.length < 2 ? "Type at least 2 characters" : "No audits found"}</CommandEmpty>
+                        <CommandGroup heading="Matching audits">
+                          {reauditResults.map(r => (
+                            <CommandItem
+                              key={r.id}
+                              value={r.refNumber + " " + r.topic}
+                              onSelect={() => {
+                                onChange({ linkedAuditId: r.id, linkedAuditRef: r.refNumber ?? r.topic });
+                                setReauditOpen(false);
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-xs font-medium">{r.refNumber}</span>
+                                <span className="text-[11px] text-muted-foreground">{r.topic}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          )}
           <div>
             <Label className="text-xs">Audit Title *</Label>
             <Input value={data.topic} onChange={e => onChange({ topic: e.target.value })} className={`mt-1 text-[13px] ${errors.topic ? "border-red-400" : ""}`} placeholder="Brief descriptive title" />
@@ -295,7 +361,26 @@ function Step1({
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
 
-function Step2({ data, onChange }: { data: WizardData; onChange: (patch: Partial<WizardData>) => void }) {
+function Step2({ data, onChange, specialty }: { data: WizardData; onChange: (patch: Partial<WizardData>) => void; specialty: string }) {
+  const [presetOpen, setPresetOpen] = useState(false);
+  const { data: presets = [] } = trpc.audits.standardPresets.useQuery(
+    { specialty },
+    { enabled: !!specialty }
+  );
+
+  const applyPreset = (preset: { standard: string; criteria: string; compliance: string; exceptions: string }) => {
+    // Replace the last empty row or append
+    const existing = data.auditStandards;
+    const emptyIdx = existing.findIndex(r => !r.standard && !r.criteria);
+    if (emptyIdx >= 0) {
+      const updated = existing.map((r, i) => i === emptyIdx ? { ...preset } : r);
+      onChange({ auditStandards: updated });
+    } else {
+      onChange({ auditStandards: [...existing, { ...preset }] });
+    }
+    setPresetOpen(false);
+  };
+
   const updateStandard = (i: number, field: keyof AuditStandardRow, value: string) => {
     const updated = data.auditStandards.map((row, idx) => idx === i ? { ...row, [field]: value } : row);
     onChange({ auditStandards: updated });
@@ -372,7 +457,44 @@ function Step2({ data, onChange }: { data: WizardData; onChange: (patch: Partial
       <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Audit Standards</h3>
-          <Button type="button" variant="outline" size="sm" onClick={addStandard}><Plus className="w-3.5 h-3.5 mr-1" />Add Row</Button>
+          <div className="flex gap-2">
+            {presets.length > 0 && (
+              <Popover open={presetOpen} onOpenChange={setPresetOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    <BookOpen className="w-3.5 h-3.5 mr-1" />Load Preset
+                    <ChevronsUpDown className="w-3 h-3 ml-1 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[420px] p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search standards..." />
+                    <CommandList>
+                      <CommandEmpty>No matching standards.</CommandEmpty>
+                      <CommandGroup heading={`${specialty} presets`}>
+                        {presets.map((p, idx) => (
+                          <CommandItem
+                            key={idx}
+                            value={p.standard + " " + p.criteria}
+                            onSelect={() => applyPreset(p)}
+                            className="flex-col items-start py-2"
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <Check className="w-3.5 h-3.5 opacity-0" />
+                              <span className="font-medium text-xs">{p.standard}</span>
+                              {p.compliance && <span className="ml-auto text-[11px] text-blue-600">{p.compliance}</span>}
+                            </div>
+                            {p.criteria && <p className="text-[11px] text-muted-foreground ml-5 mt-0.5 line-clamp-2">{p.criteria}</p>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={addStandard}><Plus className="w-3.5 h-3.5 mr-1" />Add Row</Button>
+          </div>
         </div>
         <div className="space-y-4">
           {data.auditStandards.map((row, i) => (
@@ -533,11 +655,146 @@ function Step3({ data, consultants, onEdit }: {
 }) {
   const supervisor = consultants.find(c => c.id === data.supervisorId);
 
+  const downloadPDF = async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    let y = 14;
+
+    // Header
+    doc.setFillColor(0, 51, 102);
+    doc.rect(0, 0, pageW, 22, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Queen Alexandra Hospital — Clinical Audit Registration Form", margin, 14);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${new Date().toLocaleDateString("en-GB")}`, pageW - margin, 14, { align: "right" });
+    y = 30;
+
+    const section = (title: string) => {
+      doc.setFillColor(230, 237, 248);
+      doc.rect(margin, y, pageW - margin * 2, 7, "F");
+      doc.setTextColor(0, 51, 102);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, margin + 2, y + 5);
+      y += 10;
+      doc.setTextColor(30, 30, 30);
+      doc.setFont("helvetica", "normal");
+    };
+
+    const field = (label: string, value: string) => {
+      if (!value) return;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text(label + ":", margin, y);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(value, pageW - margin * 2 - 40);
+      doc.text(lines, margin + 40, y);
+      y += Math.max(5, lines.length * 4.5);
+      if (y > 270) { doc.addPage(); y = 14; }
+    };
+
+    section("1. Auditor Details");
+    field("Auditor Name", data.auditor);
+    field("Grade", data.grade);
+    field("Email", data.email);
+    field("Supervising Consultant", supervisor ? supervisor.fullName : "Not assigned");
+
+    section("2. Audit Details");
+    field("Audit Title", data.topic);
+    field("Category", data.category);
+    field("Clinical Setting", data.clinicalSetting);
+    field("Priority", data.priority);
+    field("Re-audit", data.reaudit);
+    if (data.linkedAuditRef) field("Linked Previous Audit", data.linkedAuditRef);
+    field("Data Collection Period", data.dataCollectionPeriod);
+    field("Expected Sample Size", data.expectedSampleSize);
+    field("Collaborators", data.collaborators.join(", "));
+    field("Description", data.description);
+
+    section("3. Reason for Audit");
+    field("Reasons", [...data.reasonForAudit, ...(data.reasonForAuditOther ? [data.reasonForAuditOther] : [])].join(", "));
+    field("CQC Regulation", data.cqcRegulation);
+    field("Priority Classification", data.priorityType);
+    field("Support Required", [...data.supportRequired, ...(data.supportRequiredOther ? [data.supportRequiredOther] : [])].join(", "));
+
+    section("4. Timeline & Objectives");
+    field("Start Date", data.auditStartDate);
+    field("End Date", data.auditEndDate);
+    field("Objectives", data.auditObjectives);
+    field("Who Involved", data.whoInvolved);
+
+    // Audit Standards table
+    const standards = data.auditStandards.filter(s => s.standard);
+    if (standards.length > 0) {
+      section("5. Audit Standards");
+      autoTable(doc, {
+        startY: y,
+        head: [["Standard", "Criteria", "Target %", "Exceptions"]],
+        body: standards.map(s => [s.standard, s.criteria, s.compliance, s.exceptions]),
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [0, 51, 102] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    } else {
+      section("5. Audit Standards");
+      field("Standards", "None entered");
+    }
+
+    field("Evidence Base", data.evidenceBase);
+
+    section("6. Stakeholders");
+    field("Stakeholders", data.stakeholders);
+    field("Stakeholders Informed", data.stakeholdersInformed ? "Yes" : "No");
+
+    section("7. Data Collection");
+    field("Data Source", [...data.dataSource, ...(data.dataSourceOther ? [data.dataSourceOther] : [])].join(", "));
+    field("Collection Method", data.dataCollectionMethodDetail);
+    field("Collection Timing", data.dataCollectionTiming);
+    field("Data Collected By", data.dataCollectedBy);
+    field("Sampling Method", data.samplingMethodDetail);
+
+    section("8. Data Analysis");
+    field("Analysis Description", data.dataAnalysisDetail);
+    field("Data Analysed By", data.dataAnalysedBy);
+
+    section("9. Results & Action Plan");
+    field("Results Presented To", [...data.resultsPresentation, ...(data.resultsPresentationOther ? [data.resultsPresentationOther] : [])].join(", "));
+    field("Action Plan Owner", data.actionPlanOwner);
+    field("Barriers to Change", data.barriersToChange);
+    field("Re-audit Timeline", data.reAuditTimeline === "other" ? data.reAuditTimelineOther : data.reAuditTimeline);
+
+    // Signature block
+    if (y > 240) { doc.addPage(); y = 14; }
+    y += 8;
+    doc.setDrawColor(180, 180, 180);
+    doc.line(margin, y, margin + 60, y);
+    doc.line(margin + 80, y, margin + 140, y);
+    doc.setFontSize(7);
+    doc.text("Auditor Signature", margin, y + 4);
+    doc.text("Supervisor Signature", margin + 80, y + 4);
+    doc.text("Date: ________________", margin + 150, y + 4);
+
+    const filename = `audit-registration-${data.topic.replace(/\s+/g, "-").toLowerCase() || "draft"}.pdf`;
+    doc.save(filename);
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
         <FileText className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-amber-800">Please review all details carefully before submitting. Once submitted, the audit will be sent for consultant approval.</p>
+        <div className="flex-1">
+          <p className="text-xs text-amber-800">Please review all details carefully before submitting. Once submitted, the audit will be sent for consultant approval.</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={downloadPDF} className="shrink-0 text-xs">
+          <FileText className="w-3.5 h-3.5 mr-1" />Download Form
+        </Button>
       </div>
 
       {/* Step 1 Summary */}
@@ -684,6 +941,8 @@ export default function SubmitAudit() {
         barriersToChange: d.barriersToChange ?? "",
         reAuditTimeline: (d.reAuditTimeline as WizardData["reAuditTimeline"]) ?? "",
         reAuditTimelineOther: d.reAuditTimelineOther ?? "",
+        linkedAuditId: d.linkedAuditId ?? null,
+        linkedAuditRef: d.linkedAuditRef ?? "",
       });
     }
   }, [draftData, draftLoaded]);
@@ -895,7 +1154,17 @@ export default function SubmitAudit() {
       <StepIndicator step={step} />
 
       {step === 1 && <Step1 data={data} onChange={onChange} errors={errors} consultants={consultants} />}
-      {step === 2 && <Step2 data={data} onChange={onChange} />}
+      {step === 2 && (
+        <Step2
+          data={data}
+          onChange={onChange}
+          specialty={(() => {
+            const sup = consultants.find(c => c.id === data.supervisorId);
+            if (sup) return sup.grade.replace(/^Consultant\s*[\u2014\-]\s*/i, "").trim();
+            return data.category || "";
+          })()}
+        />
+      )}
       {step === 3 && <Step3 data={data} consultants={consultants} onEdit={(s) => setStep(s)} />}
 
       {/* Navigation */}
