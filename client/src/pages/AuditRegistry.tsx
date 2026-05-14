@@ -176,7 +176,11 @@ export default function AuditRegistry() {
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string>("");
 
   const archiveMutation = trpc.audits.archive.useMutation({
-    onSuccess: () => utils.audits.list.invalidate(),
+    onSuccess: () => {
+      utils.audits.list.invalidate();
+      utils.audits.myQueue.invalidate();       // keep sidebar badge in sync
+      utils.audits.myConsultantQueue.invalidate();
+    },
     onError: (err) => toast.error(err.message),
   });
 

@@ -317,3 +317,13 @@
 - [x] tRPC procedure: admin.recentRegistrations — last 10 submitted audits (status != draft)
 - [x] tRPC procedure: admin.auditsPerConsultant covers consultant queue stats; myConsultantQueue used for consultant dashboard
 - [x] Vitest: 14 tests in round18.test.ts covering all four admin helpers (112 total)
+
+## Round 19 — Consultant Queue Scoping, Live Badge, Clean Consultant List
+
+- [x] Backend: ApprovalQueue procedure — when caller is a consultant, filter audits to only those where supervisorId matches their linkedConsultantId (uses linkedConsultantId ?? -1)
+- [x] Backend: decide procedure — supervisor check now uses linkedConsultantId ?? -1 instead of user.id
+- [x] Backend: admin myQueue — now filters !a.archived so archived-but-pending audits don't inflate the badge count
+- [x] Frontend: ApprovalQueue page — hide approve/reject buttons for audits not assigned to the logged-in consultant (belt-and-suspenders)
+- [x] Frontend: Sidebar badge — archiveMutation in AuditRegistry now invalidates myQueue and myConsultantQueue so badge updates live without page refresh
+- [x] DB: Remove extra test consultant names from consultantNames table, keep only the 14 original ENT names
+- [x] Vitest: updated mock data in notifications.test.ts and audit.trail.test.ts to include linkedConsultantId: 2 — all 112 tests passing

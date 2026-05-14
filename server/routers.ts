@@ -256,11 +256,14 @@ const auditRouter = router({
     if (user.auditRole === "admin") {
       const all = await getAllAudits();
       return all
-        .filter((a) => a.status === "pending")
+        .filter((a) => a.status === "pending" && !a.archived)
         .map((a) => ({ ...a, collaborators: a.collaborators ? JSON.parse(a.collaborators) : [] }));
     }
     if (user.auditRole === "consultant") {
-      const mine = await getAuditsForConsultant(user.id);
+      // supervisorId on audits refers to the seeded consultantNames record id (linkedConsultantId),
+      // NOT the user account id — use linkedConsultantId for the lookup.
+      const lookupId = user.linkedConsultantId ?? -1;
+      const mine = await getAuditsForConsultant(lookupId);
       return mine.map((a) => ({ ...a, collaborators: a.collaborators ? JSON.parse(a.collaborators) : [] }));
     }
     return [];
@@ -629,10 +632,12 @@ const auditRouter = router({
       if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      // Consultants may only decide on audits explicitly assigned to them as supervisor
+      // Consultants may only decide on audits explicitly assigned to them as supervisor.
+      // supervisorId on audits = seeded consultantNames record id = user.linkedConsultantId
       if (user.auditRole === "consultant") {
         const audit = await getAuditById(input.auditId);
-        if (!audit || audit.supervisorId !== user.id) {
+        const assignedId = user.linkedConsultantId ?? -1;
+        if (!audit || audit.supervisorId !== assignedId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You are not the assigned supervisor for this audit." });
         }
       }

@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, fullName, grade FROM consultantNames WHERE id > 14 ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, fullName, grade FROM consultantNames WHERE id > 14 ORDER BY id;",
+  "rows": [
+    {
+      "id": "15",
+      "fullName": "Test consultant",
+      "grade": "ENT"
+    },
+    {
+      "id": "30001",
+      "fullName": "R18 Test Consultant 1778710943302",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30002",
+      "fullName": "R18 Test Consultant 1778711003956",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30003",
+      "fullName": "R18 Test Consultant 1778711075551",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30004",
+      "fullName": "R18 Test Consultant 1778711087346",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30005",
+      "fullName": "R18 Test Consultant 1778711099711",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30006",
+      "fullName": "R18 Test Consultant 1778711112002",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30007",
+      "fullName": "R18 Test Consultant 1778711125235",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30008",
+      "fullName": "R18 Test Consultant 1778711136836",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30009",
+      "fullName": "R18 Test Consultant 1778711188509",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30010",
+      "fullName": "R18 Test Consultant 1778711201627",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30011",
+      "fullName": "R18 Test Consultant 1778711212771",
+      "grade": "Consultant"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfullName\tgrade\n15\tTest consultant\tENT\n30001\tR18 Test Consultant 1778710943302\tConsultant\n30002\tR18 Test Consultant 1778711003956\tConsultant\n30003\tR18 Test Consultant 1778711075551\tConsultant\n30004\tR18 Test Consultant 1778711087346\tConsultant\n30005\tR18 Test Consultant 1778711099711\tConsultant\n30006\tR18 Test Consultant 1778711112002\tConsultant\n30007\tR18 Test Consultant 1778711125235\tConsultant\n30008\tR18 Test Consultant 1778711136836\tConsultant\n30009\tR18 Test Consultant 1778711188509\tConsultant\n30010\tR18 Test Consultant 1778711201627\tConsultant\n30011\tR18 Test Consultant 1778711212771\tConsultant\n",
+  "stderr": "",
+  "execution_time_ms": 271
+}

@@ -1,0 +1,166 @@
+{
+  "query": "SELECT id, title, fullName, grade FROM consultantNames ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute SELECT id, title, fullName, grade FROM consultantNames ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Mr",
+      "fullName": "Costa Repanos",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "2",
+      "title": "Miss",
+      "fullName": "Ellie Sproson",
+      "grade": "Consultant — Paediatric and Laryngology"
+    },
+    {
+      "id": "3",
+      "title": "Mr",
+      "fullName": "Erik Nilssen",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "4",
+      "title": "Mr",
+      "fullName": "Hani Nasef",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "5",
+      "title": "Mr",
+      "fullName": "Stephen Hayes",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "6",
+      "title": "Mr",
+      "fullName": "Harish Vishwanathan",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "7",
+      "title": "Mr",
+      "fullName": "Tim Biggs",
+      "grade": "Consultant — Rhinology"
+    },
+    {
+      "id": "8",
+      "title": "Mr",
+      "fullName": "Jonathan Buckland",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "9",
+      "title": "Mr",
+      "fullName": "Matt Ward",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "10",
+      "title": "Mr",
+      "fullName": "Mike Pringle",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "11",
+      "title": "Mr",
+      "fullName": "Marcel Geyer",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "12",
+      "title": "Mr",
+      "fullName": "Florian Schmidt",
+      "grade": "Consultant — Head and Neck"
+    },
+    {
+      "id": "13",
+      "title": "Mr",
+      "fullName": "Moe Alsalem",
+      "grade": "Consultant — Paediatric"
+    },
+    {
+      "id": "14",
+      "title": "Mr",
+      "fullName": "Rob Chessman",
+      "grade": "Consultant — Otology"
+    },
+    {
+      "id": "15",
+      "title": "NULL",
+      "fullName": "Test consultant",
+      "grade": "ENT"
+    },
+    {
+      "id": "30001",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778710943302",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30002",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711003956",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30003",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711075551",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30004",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711087346",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30005",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711099711",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30006",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711112002",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30007",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711125235",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30008",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711136836",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30009",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711188509",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30010",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711201627",
+      "grade": "Consultant"
+    },
+    {
+      "id": "30011",
+      "title": "Mr",
+      "fullName": "R18 Test Consultant 1778711212771",
+      "grade": "Consultant"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tfullName\tgrade\n1\tMr\tCosta Repanos\tConsultant — Head and Neck\n2\tMiss\tEllie Sproson\tConsultant — Paediatric and Laryngology\n3\tMr\tErik Nilssen\tConsultant — Rhinology\n4\tMr\tHani Nasef\tConsultant — Head and Neck\n5\tMr\tStephen Hayes\tConsultant — Rhinology\n6\tMr\tHarish Vishwanathan\tConsultant — Rhinology\n7\tMr\tTim Biggs\tConsultant — Rhinology\n8\tMr\tJonathan Buckland\tConsultant — Otology\n9\tMr\tMatt Ward\tConsultant — Head and Neck\n10\tMr\tMike Pringle\tConsultant — Otology\n11\tMr\tMarcel Geyer\tConsultant — Otology\n12\tMr\tFlorian Schmidt\tConsultant — Head and Neck\n13\tMr\tMoe Alsalem\tConsultant — Paediatric\n14\tMr\tRob Chessman\tConsultant — Otology\n15\tNULL\tTest consultant\tENT\n30001\tMr\tR18 Test Consultant 1778710943302\tConsultant\n30002\tMr\tR18 Test Consultant 1778711003956\tConsultant\n30003\tMr\tR18 Test Consultant 1778711075551\tConsultant\n30004\tMr\tR18 Test Consultant 1778711087346\tConsultant\n30005\tMr\tR18 Test Consultant 1778711099711\tConsultant\n30006\tMr\tR18 Test Consultant 1778711112002\tConsultant\n30007\tMr\tR18 Test Consultant 1778711125235\tConsultant\n30008\tMr\tR18 Test Consultant 1778711136836\tConsultant\n30009\tMr\tR18 Test Consultant 1778711188509\tConsultant\n30010\tMr\tR18 Test Consultant 1778711201627\tConsultant\n30011\tMr\tR18 Test Consultant 1778711212771\tConsultant\n",
+  "stderr": "",
+  "execution_time_ms": 323
+}

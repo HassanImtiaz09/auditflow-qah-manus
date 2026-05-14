@@ -107,6 +107,9 @@ const MOCK_CONSULTANT_DB_USER = {
   fullName: "Dr Test Consultant",
   grade: "Consultant",
   auditRole: "consultant" as const,
+  // supervisorId on audits references consultantNames.id, so linkedConsultantId
+  // must match MOCK_PENDING_AUDIT.supervisorId (2) for the decide check to pass.
+  linkedConsultantId: 2,
 };
 
 const MOCK_ADMIN_DB_USER = {
