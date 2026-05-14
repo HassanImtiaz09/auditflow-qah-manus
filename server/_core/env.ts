@@ -9,7 +9,7 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   // Resend API (preferred — API key only, no SMTP setup needed)
   resendApiKey: process.env.RESEND_API_KEY ?? "",
-  resendFrom: process.env.RESEND_FROM ?? "AuditFlow QAH <no-reply@auditqah-436kjx9h.manus.space>",
+  resendFrom: process.env.RESEND_FROM ?? "AuditFlow QAH <onboarding@resend.dev>",
   // SMTP email configuration (fallback — emails are skipped gracefully if not set)
   smtpHost: process.env.SMTP_HOST ?? "",
   smtpPort: parseInt(process.env.SMTP_PORT ?? "587", 10),
