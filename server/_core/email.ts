@@ -13,6 +13,31 @@ import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { ENV } from "./env";
 
+// ─── Security helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Escape user-controlled strings before interpolating them into HTML bodies.
+ * Prevents HTML injection / phishing links in outbound email.
+ */
+export function escapeHtml(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Strip newline characters from email subject lines to prevent header injection.
+ */
+export function safeSubject(s: string): string {
+  return s.replace(/[\r\n]+/g, " ").trim();
+}
+
+// ─── Transport layer ──────────────────────────────────────────────────────────
+
 export interface EmailPayload {
   to: string;
   subject: string;
@@ -109,6 +134,8 @@ interface AuditEmailContext {
 }
 
 function baseTemplate(title: string, bodyHtml: string): string {
+  // title may contain user-controlled data (e.g. refNumber in subject) — escape it
+  const safeTitle = escapeHtml(title);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -142,7 +169,7 @@ function baseTemplate(title: string, bodyHtml: string): string {
     <p>Portsmouth Hospitals University NHS Trust — ENT Department</p>
   </div>
   <div class="body">
-    <h2 style="margin:0 0 16px;font-size:16px;color:#111827;">${title}</h2>
+    <h2 style="margin:0 0 16px;font-size:16px;color:#111827;">${safeTitle}</h2>
     ${bodyHtml}
   </div>
   <div class="footer">
@@ -160,6 +187,14 @@ export function buildAuditStatusEmail(
 ): { subject: string; html: string; text: string } {
   const { refNumber, topic, actorName, decision, note, newSupervisorName } = ctx;
 
+  // Escape all user-controlled values before HTML interpolation
+  const eRef = escapeHtml(refNumber);
+  const eTopic = escapeHtml(topic);
+  const eActorName = escapeHtml(actorName);
+  const eRecipientName = escapeHtml(recipientName);
+  const eNote = escapeHtml(note);
+  const eNewSupervisorName = escapeHtml(newSupervisorName);
+
   const badgeClass = `badge badge-${decision}`;
   const decisionLabel =
     decision === "approved"    ? "Approved"
@@ -170,53 +205,53 @@ export function buildAuditStatusEmail(
 
   const auditBox = `
     <div class="audit-box">
-      <p class="ref">Audit Reference: ${refNumber}</p>
-      <p class="title">${topic}</p>
+      <p class="ref">Audit Reference: ${eRef}</p>
+      <p class="title">${eTopic}</p>
     </div>`;
 
-  let bodyHtml = `<p>Dear ${recipientName},</p>`;
+  let bodyHtml = `<p>Dear ${eRecipientName},</p>`;
   let subject = "";
   let plainText = "";
 
   if (decision === "approved") {
-    subject = `[AuditFlow] Audit ${refNumber} has been approved`;
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been approved`);
     bodyHtml += `
-      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${eActorName}</strong>.</p>
       ${auditBox}`;
     plainText = `Your audit ${refNumber} ("${topic}") has been approved by ${actorName}.`;
   } else if (decision === "rejected") {
-    subject = `[AuditFlow] Audit ${refNumber} has been rejected`;
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been rejected`);
     bodyHtml += `
-      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${eActorName}</strong>.</p>
       ${auditBox}`;
     plainText = `Your audit ${refNumber} ("${topic}") has been rejected by ${actorName}.`;
   } else if (decision === "reassigned") {
-    subject = `[AuditFlow] Audit ${refNumber} has been reassigned`;
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been reassigned`);
     const supText = newSupervisorName
-      ? `The audit has been reassigned to <strong>${newSupervisorName}</strong>.`
+      ? `The audit has been reassigned to <strong>${eNewSupervisorName}</strong>.`
       : "The supervising consultant assignment has been removed.";
     bodyHtml += `
-      <p>An update has been made to the following audit by <strong>${actorName}</strong>:</p>
+      <p>An update has been made to the following audit by <strong>${eActorName}</strong>:</p>
       ${auditBox}
       <p>${supText}</p>`;
     plainText = `Audit ${refNumber} ("${topic}") has been reassigned by ${actorName}. ${newSupervisorName ? `New supervisor: ${newSupervisorName}.` : "Supervisor removed."}`;
   } else if (decision === "archived") {
-    subject = `[AuditFlow] Audit ${refNumber} has been archived`;
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been archived`);
     bodyHtml += `
-      <p>The following audit has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      <p>The following audit has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${eActorName}</strong>.</p>
       ${auditBox}
       <p>Archived audits are hidden from the active registry but remain accessible to administrators.</p>`;
     plainText = `Audit ${refNumber} ("${topic}") has been archived by ${actorName}.`;
   } else {
-    subject = `[AuditFlow] Audit ${refNumber} has been restored`;
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been restored`);
     bodyHtml += `
-      <p>The following audit has been <span class="${badgeClass}">Restored</span> by <strong>${actorName}</strong> and is now active again.</p>
+      <p>The following audit has been <span class="${badgeClass}">Restored</span> by <strong>${eActorName}</strong> and is now active again.</p>
       ${auditBox}`;
     plainText = `Audit ${refNumber} ("${topic}") has been restored by ${actorName}.`;
   }
 
   if (note) {
-    bodyHtml += `<div class="note-box"><strong>Note from ${actorName}:</strong> ${note}</div>`;
+    bodyHtml += `<div class="note-box"><strong>Note from ${eActorName}:</strong> ${eNote}</div>`;
     plainText += ` Note: "${note}"`;
   }
 
@@ -327,10 +362,16 @@ export async function sendVerificationEmail(opts: {
   origin: string;
 }): Promise<boolean> {
   const { to, recipientName, token, origin } = opts;
-  const verifyUrl = `${origin}/verify-email?token=${token}`;
+  const verifyUrl = `${origin}/verify-email?token=${encodeURIComponent(token)}`;
+
+  // recipientName is user-supplied; escape it before HTML interpolation
+  const eRecipientName = escapeHtml(recipientName);
+  // verifyUrl is constructed from a server-generated token — safe to use as href
+  // but we still escape it for the visible text fallback
+  const eVerifyUrl = escapeHtml(verifyUrl);
 
   const bodyHtml = `
-    <p>Dear ${recipientName},</p>
+    <p>Dear ${eRecipientName},</p>
     <p>Thank you for registering with <strong>AuditFlow QAH</strong> — the ENT Clinical Audit Registry at Portsmouth Hospitals University NHS Trust.</p>
     <p>Please verify your email address by clicking the button below. This link will expire in <strong>24 hours</strong>.</p>
     <div style="text-align:center;margin:28px 0;">
@@ -340,7 +381,7 @@ export async function sendVerificationEmail(opts: {
       </a>
     </div>
     <p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:</p>
-    <p style="font-size:12px;word-break:break-all;color:#003366;">${verifyUrl}</p>
+    <p style="font-size:12px;word-break:break-all;color:#003366;">${eVerifyUrl}</p>
     <p style="font-size:12px;color:#6b7280;">If you did not create an account, you can safely ignore this email.</p>`;
 
   const subject = "[AuditFlow] Please verify your email address";
@@ -367,22 +408,28 @@ export async function sendRegistrationConfirmationEmail(opts: {
 }): Promise<boolean> {
   const { to, recipientName, grade, isConsultant } = opts;
 
+  // Escape user-controlled values
+  const eRecipientName = escapeHtml(recipientName);
+  const eGrade = escapeHtml(grade);
+  // `to` is the email address — escape for display in HTML body
+  const eTo = escapeHtml(to);
+
   const nextStepHtml = isConsultant
-    ? `<p>As a <strong>${grade}</strong>, your account is pending approval by the department administrator.
+    ? `<p>As a <strong>${eGrade}</strong>, your account is pending approval by the department administrator.
        You will receive a further email once your consultant access has been approved.</p>`
     : `<p>Your account is now active. Please verify your email address using the link in the separate
        verification email we have just sent, then log in to start submitting clinical audits.</p>`;
 
   const bodyHtml = `
-    <p>Dear ${recipientName},</p>
+    <p>Dear ${eRecipientName},</p>
     <p>Thank you for registering with <strong>AuditFlow QAH</strong> — the ENT Clinical Audit Registry
     at Portsmouth Hospitals University NHS Trust.</p>
     <p>Your account has been created with the following details:</p>
     <div style="background:#f0f4fa;border-left:4px solid #003366;border-radius:4px;padding:14px 18px;margin:18px 0;">
       <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">Registered email</p>
-      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${to}</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${eTo}</p>
       <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">Clinical grade</p>
-      <p style="margin:0;font-size:15px;font-weight:700;color:#003366;">${grade}</p>
+      <p style="margin:0;font-size:15px;font-weight:700;color:#003366;">${eGrade}</p>
     </div>
     ${nextStepHtml}
     <p style="font-size:12px;color:#6b7280;">If you did not create this account, please contact your department IT lead immediately.</p>`;
@@ -412,27 +459,36 @@ export async function sendAuditSubmissionEmails(opts: {
 }): Promise<void> {
   const { refNumber, topic, submitterName, submitterEmail, supervisorName, collaborators } = opts;
 
+  // Escape user-controlled values
+  const eRefNumber = escapeHtml(refNumber);
+  const eTopic = escapeHtml(topic);
+  const eSubmitterName = escapeHtml(submitterName);
+  const eSupervisorName = escapeHtml(supervisorName);
+
   const supervisorLine = supervisorName
-    ? `<p>The audit has been assigned to <strong>${supervisorName}</strong> for review.</p>`
+    ? `<p>The audit has been assigned to <strong>${eSupervisorName}</strong> for review.</p>`
     : `<p>The audit is awaiting assignment to a supervising consultant.</p>`;
 
-  const buildBody = (recipientName: string) => `
-    <p>Dear ${recipientName},</p>
+  const buildBody = (recipientName: string) => {
+    const eRecipientName = escapeHtml(recipientName);
+    return `
+    <p>Dear ${eRecipientName},</p>
     <p>This is a confirmation that the following clinical audit has been successfully submitted to
     <strong>AuditFlow QAH</strong> and is now awaiting consultant review.</p>
     <div style="background:#f0f4fa;border-left:4px solid #003366;border-radius:4px;padding:14px 18px;margin:18px 0;">
       <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Reference number</p>
-      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${refNumber}</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${eRefNumber}</p>
       <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Audit topic</p>
-      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${topic}</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${eTopic}</p>
       <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Submitted by</p>
-      <p style="margin:0;font-size:14px;color:#374151;">${submitterName}</p>
+      <p style="margin:0;font-size:14px;color:#374151;">${eSubmitterName}</p>
     </div>
     ${supervisorLine}
     <p>You will receive a further email when the supervising consultant has reviewed the audit.</p>
     <p style="font-size:12px;color:#6b7280;">If you believe you received this in error, please contact your department audit lead.</p>`;
+  };
 
-  const subject = `[AuditFlow] Audit submitted — ${refNumber}: ${topic}`;
+  const subject = safeSubject(`[AuditFlow] Audit submitted — ${refNumber}: ${topic}`);
 
   const recipients: { name: string; email: string }[] = [];
 
@@ -471,10 +527,13 @@ export async function sendPasswordResetEmail(opts: {
   origin: string;
 }): Promise<boolean> {
   const { to, recipientName, token, origin } = opts;
-  const resetUrl = `${origin}/reset-password?token=${token}`;
+  const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`;
+
+  const eRecipientName = escapeHtml(recipientName);
+  const eResetUrl = escapeHtml(resetUrl);
 
   const bodyHtml = `
-    <p>Dear ${recipientName},</p>
+    <p>Dear ${eRecipientName},</p>
     <p>We received a request to reset the password for your <strong>AuditFlow QAH</strong> account.</p>
     <p>Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.</p>
     <div style="text-align:center;margin:28px 0;">
@@ -484,7 +543,7 @@ export async function sendPasswordResetEmail(opts: {
       </a>
     </div>
     <p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:</p>
-    <p style="font-size:12px;word-break:break-all;color:#003366;">${resetUrl}</p>
+    <p style="font-size:12px;word-break:break-all;color:#003366;">${eResetUrl}</p>
     <p style="font-size:12px;color:#6b7280;">If you did not request a password reset, you can safely ignore this email. Your password will not be changed.</p>`;
 
   const subject = "[AuditFlow] Password reset request — AuditFlow QAH";

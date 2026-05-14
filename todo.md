@@ -456,3 +456,17 @@
 - [x] Tests: audits.myAuditsRegistry returns only involved audits
 - [x] Tests: audits.list and audits.listWithHistory throw FORBIDDEN for clinician
 - [x] Run pnpm test and pnpm check — all pass (159 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 6: Escape HTML in Email Templates
+
+- [x] Add escapeHtml(s) helper to server/_core/email.ts — escapes & < > " '
+- [x] Add safeSubject(s) helper — strips CR/LF to prevent email header injection
+- [x] baseTemplate: escape title parameter in <h2> (contains refNumber from subject)
+- [x] buildAuditStatusEmail: wrap refNumber, topic, actorName, recipientName, note, newSupervisorName with escapeHtml()
+- [x] sendVerificationEmail: wrap recipientName, verifyUrl (display text) with escapeHtml()
+- [x] sendRegistrationConfirmationEmail: wrap recipientName, grade, to (email address) with escapeHtml()
+- [x] sendAuditSubmissionEmails: wrap refNumber, topic, submitterName, supervisorName, recipientName with escapeHtml(); wrap subject with safeSubject()
+- [x] sendPasswordResetEmail: wrap recipientName, resetUrl (display text) with escapeHtml()
+- [x] Write server/email-escape.test.ts — 15 tests covering escapeHtml, safeSubject, and buildAuditStatusEmail with malicious inputs
+- [x] Run pnpm test and pnpm check — all pass (174 tests, 0 TypeScript errors)
+- [x] Verified: git grep shows all HTML interpolations use e-prefixed escaped variables
