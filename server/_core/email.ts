@@ -1,13 +1,16 @@
 /**
  * Outbound email helper for AuditFlow QAH.
  *
- * Uses nodemailer with SMTP credentials supplied via environment variables:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_SECURE
+ * Priority order:
+ *   1. Resend API (RESEND_API_KEY) — preferred, no SMTP setup needed
+ *   2. SMTP / nodemailer (SMTP_HOST + credentials) — fallback
+ *   3. If neither is configured, logs a warning and returns false
  *
- * If SMTP_HOST is not configured the helper logs a warning and returns false
- * so the rest of the application continues to work without email delivery.
+ * The caller can check the return value to decide whether to show
+ * an on-screen fallback link.
  */
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { ENV } from "./env";
 
 export interface EmailPayload {
@@ -17,8 +20,14 @@ export interface EmailPayload {
   text?: string;
 }
 
-let _transporter: nodemailer.Transporter | null = null;
+let _resend: Resend | null = null;
+function getResend(): Resend | null {
+  if (!ENV.resendApiKey) return null;
+  if (!_resend) _resend = new Resend(ENV.resendApiKey);
+  return _resend;
+}
 
+let _transporter: nodemailer.Transporter | null = null;
 function getTransporter(): nodemailer.Transporter | null {
   if (!ENV.smtpHost) return null;
   if (_transporter) return _transporter;
@@ -26,39 +35,65 @@ function getTransporter(): nodemailer.Transporter | null {
     host: ENV.smtpHost,
     port: ENV.smtpPort,
     secure: ENV.smtpSecure,
-    auth: ENV.smtpUser
-      ? { user: ENV.smtpUser, pass: ENV.smtpPass }
-      : undefined,
+    auth: ENV.smtpUser ? { user: ENV.smtpUser, pass: ENV.smtpPass } : undefined,
   });
   return _transporter;
 }
 
 /**
- * Send a single email. Returns true on success, false when SMTP is not
- * configured or the upstream server rejects the message.
+ * Send a single email.
+ * Returns true on success, false when no email provider is configured
+ * or the upstream service rejects the message.
  */
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
+  // 1. Try Resend
+  const resend = getResend();
+  if (resend) {
+    try {
+      const { error } = await resend.emails.send({
+        from: ENV.resendFrom,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+      });
+      if (error) {
+        console.warn(`[Email/Resend] Failed to send to ${payload.to}:`, error);
+        // Fall through to SMTP
+      } else {
+        console.info(`[Email/Resend] Sent "${payload.subject}" to ${payload.to}`);
+        return true;
+      }
+    } catch (err) {
+      console.warn(`[Email/Resend] Exception sending to ${payload.to}:`, err);
+      // Fall through to SMTP
+    }
+  }
+
+  // 2. Try SMTP
   const transporter = getTransporter();
-  if (!transporter) {
-    console.warn(
-      `[Email] SMTP not configured — skipping email to ${payload.to}: "${payload.subject}"`
-    );
-    return false;
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: ENV.smtpFrom,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+      });
+      console.info(`[Email/SMTP] Sent "${payload.subject}" to ${payload.to}`);
+      return true;
+    } catch (err) {
+      console.warn(`[Email/SMTP] Failed to send to ${payload.to}:`, err);
+      return false;
+    }
   }
-  try {
-    await transporter.sendMail({
-      from: ENV.smtpFrom,
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
-    });
-    console.info(`[Email] Sent "${payload.subject}" to ${payload.to}`);
-    return true;
-  } catch (err) {
-    console.warn(`[Email] Failed to send to ${payload.to}:`, err);
-    return false;
-  }
+
+  // 3. No provider configured
+  console.warn(
+    `[Email] No email provider configured — skipping email to ${payload.to}: "${payload.subject}"`
+  );
+  return false;
 }
 
 // ─── Email template builder ───────────────────────────────────────────────────

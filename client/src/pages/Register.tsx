@@ -32,10 +32,12 @@ export default function Register() {
   const [showPw, setShowPw] = useState(false);
   const [registered, setRegistered] = useState<"verify_email" | "consultant_pending" | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: (data) => {
+      if (data.verifyUrl) setVerifyUrl(data.verifyUrl);
       if (data.pending) {
         setRegistered("consultant_pending");
       } else {
@@ -115,19 +117,46 @@ export default function Register() {
             <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-blue-600" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Check Your Email</h2>
-            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-              We've sent a verification link to <strong>{registeredEmail}</strong>.
-              Please click the link in the email to activate your account before logging in.
-            </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-6 text-left">
-              <p className="text-xs font-semibold text-blue-800 mb-1">Didn't receive the email?</p>
-              <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-                <li>Check your spam or junk folder</li>
-                <li>The link expires in 24 hours</li>
-                <li>Make sure you used the correct email address</li>
-              </ul>
-            </div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {verifyUrl ? "Verify Your Email" : "Check Your Email"}
+            </h2>
+
+            {verifyUrl ? (
+              /* Email delivery not configured — show clickable link directly */
+              <>
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                  Your account has been created. Email delivery is not yet configured,
+                  so please use the link below to verify your account:
+                </p>
+                <a
+                  href={verifyUrl}
+                  className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg text-sm mb-4 transition-colors"
+                >
+                  Click here to verify your email
+                </a>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Or copy this link into your browser:<br />
+                  <span className="text-blue-600 break-all text-[11px]">{verifyUrl}</span>
+                </p>
+              </>
+            ) : (
+              /* Email sent successfully */
+              <>
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                  We've sent a verification link to <strong>{registeredEmail}</strong>.
+                  Please click the link in the email to activate your account before logging in.
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-left">
+                  <p className="text-xs font-semibold text-blue-800 mb-1">Didn't receive the email?</p>
+                  <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                    <li>Check your spam or junk folder</li>
+                    <li>The link expires in 24 hours</li>
+                    <li>Make sure you used the correct email address</li>
+                  </ul>
+                </div>
+              </>
+            )}
+
             <Button
               variant="outline"
               className="w-full"

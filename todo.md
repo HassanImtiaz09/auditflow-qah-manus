@@ -372,3 +372,14 @@
 - [x] Frontend: register /verify-email route in App.tsx (excluded from auth redirect guard)
 - [x] Tests: all 135 tests passing (no regressions)
 - [x] Cleanup: delete all non-admin accounts after implementation
+
+## Round 22 — Fix Email Delivery (Resend API + on-screen fallback)
+
+- [x] Install resend npm package (resend 6.12.3)
+- [x] Rewrite server/_core/email.ts to use Resend API (RESEND_API_KEY env var) as primary, SMTP as secondary fallback
+- [x] Add on-screen fallback: when neither Resend nor SMTP is configured, return verifyUrl in register response so the link can be shown directly in the UI
+- [x] Update register procedure to return { verifyUrl } when email delivery fails/unconfigured
+- [x] Update Register success screen to show a clickable verification link when verifyUrl is returned
+- [x] Run full test suite — all 135 tests pass
+- [x] Delete all non-admin accounts
+- [x] Request RESEND_API_KEY from user

@@ -139,9 +139,9 @@ const authRouter = router({
       // Store verification token
       await setEmailVerifyToken(newUser.id, verifyToken, verifyTokenExpiresAt);
 
-      // Send verification email (best-effort — non-fatal if SMTP not configured)
+      // Send verification email (best-effort — non-fatal if provider not configured)
       const origin = input.origin ?? (ctx.req.headers.origin as string | undefined) ?? "https://auditqah-436kjx9h.manus.space";
-      await sendVerificationEmail({
+      const emailSent = await sendVerificationEmail({
         to: input.email,
         recipientName: `${input.title ? input.title + " " : ""}${input.fullName}`,
         token: verifyToken,
@@ -171,7 +171,9 @@ const authRouter = router({
         }
       }
 
-      return { success: true, pending: isConsultant, pendingVerification: true };
+      // If email could not be sent, return the verify URL so the frontend can show it
+      const verifyUrl = emailSent ? null : `${origin}/verify-email?token=${verifyToken}`;
+      return { success: true, pending: isConsultant, pendingVerification: true, verifyUrl };
     }),
 
   login: publicProcedure
