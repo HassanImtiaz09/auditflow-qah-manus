@@ -36,7 +36,7 @@ interface WizardData {
   topic: string;
   dataCollectionPeriod: string;
   expectedSampleSize: string;
-  collaborators: string[];
+  collaborators: { name: string; email: string }[];
   description: string;
   supervisorId: number | null;
 
@@ -174,7 +174,8 @@ function Step1({
   errors: Partial<Record<string, string>>;
   consultants: { id: number; fullName: string; grade: string }[];
 }) {
-  const [newCollab, setNewCollab] = useState("");
+  const [newCollabName, setNewCollabName] = useState("");
+  const [newCollabEmail, setNewCollabEmail] = useState("");
   const [reauditSearch, setReauditSearch] = useState(data.linkedAuditRef || "");
   const [reauditOpen, setReauditOpen] = useState(false);
   const { data: reauditResults = [] } = trpc.audits.searchByRef.useQuery(
@@ -182,10 +183,12 @@ function Step1({
     { enabled: reauditSearch.length >= 2 }
   );
   const addC = () => {
-    const t = newCollab.trim();
-    if (!t) return;
-    onChange({ collaborators: [...data.collaborators, t] });
-    setNewCollab("");
+    const name = newCollabName.trim();
+    const email = newCollabEmail.trim();
+    if (!name || !email) return;
+    onChange({ collaborators: [...data.collaborators, { name, email }] });
+    setNewCollabName("");
+    setNewCollabEmail("");
   };
   const remC = (i: number) => onChange({ collaborators: data.collaborators.filter((_, j) => j !== i) });
 
@@ -335,15 +338,32 @@ function Step1({
         </div>
         <div className="mt-5">
           <Label className="text-xs">Collaborators</Label>
+          <p className="text-[11px] text-muted-foreground mb-2">Add the name and email address of each collaborator. They will receive email updates on audit status changes.</p>
           <div className="flex gap-2 mt-1">
-            <Input value={newCollab} onChange={e => setNewCollab(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addC(); } }} className="text-[13px] flex-1" placeholder="Add name and press Enter" />
-            <Button type="button" variant="outline" size="sm" onClick={addC}><Plus className="w-4 h-4" /></Button>
+            <Input
+              value={newCollabName}
+              onChange={e => setNewCollabName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addC(); } }}
+              className="text-[13px] flex-1"
+              placeholder="Full name"
+            />
+            <Input
+              type="email"
+              value={newCollabEmail}
+              onChange={e => setNewCollabEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addC(); } }}
+              className="text-[13px] flex-1"
+              placeholder="Email address"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addC} title="Add collaborator"><Plus className="w-4 h-4" /></Button>
           </div>
           {data.collaborators.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {data.collaborators.map((c, i) => (
                 <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 text-[12px] px-2.5 py-1 rounded-full border border-blue-200">
-                  {c}<button type="button" onClick={() => remC(i)}><X className="w-3 h-3 text-blue-500" /></button>
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-blue-500 text-[11px]">&#60;{c.email}&#62;</span>
+                  <button type="button" onClick={() => remC(i)}><X className="w-3 h-3 text-blue-500" /></button>
                 </span>
               ))}
             </div>
@@ -737,7 +757,7 @@ function Step3({ data, consultants, onEdit }: {
     if (data.linkedAuditRef) field("Linked Previous Audit", data.linkedAuditRef);
     field("Data Collection Period", data.dataCollectionPeriod);
     field("Expected Sample Size", data.expectedSampleSize);
-    field("Collaborators", data.collaborators.join(", "));
+    field("Collaborators", data.collaborators.map(c => `${c.name} <${c.email}>`).join(", "));
     field("Description", data.description);
 
     section("3. Reason for Audit");
@@ -837,7 +857,7 @@ function Step3({ data, consultants, onEdit }: {
         <ReviewRow label="Audit Title" value={data.topic} />
         <ReviewRow label="Data Collection Period" value={data.dataCollectionPeriod} />
         <ReviewRow label="Expected Sample Size" value={data.expectedSampleSize} />
-        <ReviewRow label="Collaborators" value={data.collaborators} />
+        <ReviewRow label="Collaborators" value={data.collaborators.map(c => `${c.name} <${c.email}>`).join(", ") || undefined} />
         <ReviewRow label="Description" value={data.description} />
       </div>
 
@@ -937,7 +957,13 @@ export default function SubmitAudit() {
         topic: d.topic ?? "",
         dataCollectionPeriod: d.dataCollectionPeriod ?? "",
         expectedSampleSize: d.expectedSampleSize ?? "",
-        collaborators: Array.isArray(d.collaborators) ? d.collaborators : [],
+        collaborators: Array.isArray(d.collaborators)
+          ? d.collaborators.map((c: unknown) =>
+              typeof c === "string"
+                ? { name: c, email: "" }  // backward compat: old string-only drafts
+                : (c as { name: string; email: string })
+            )
+          : [],
         description: d.description ?? "",
         supervisorId: d.supervisorId ?? null,
         reasonForAudit: Array.isArray(d.reasonForAudit) ? d.reasonForAudit : [],

@@ -75,6 +75,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { getStandardPresets } from "../shared/auditStandards";
 import { notifyOwner } from "./_core/notification";
+import { sendAuditStatusEmails } from "./_core/email";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -346,7 +347,7 @@ const auditRouter = router({
         topic: z.string().optional(),
         dataCollectionPeriod: z.string().optional(),
         expectedSampleSize: z.string().optional(),
-        collaborators: z.array(z.string()).optional(),
+        collaborators: z.array(z.object({ name: z.string(), email: z.string() })).optional(),
         description: z.string().optional(),
         supervisorId: z.number().nullable().optional(),
         // Step 2 fields
@@ -515,7 +516,7 @@ const auditRouter = router({
         topic: z.string().min(3),
         dataCollectionPeriod: z.string().optional(),
         expectedSampleSize: z.string().optional(),
-        collaborators: z.array(z.string()).optional(),
+        collaborators: z.array(z.object({ name: z.string(), email: z.string() })).optional(),
         description: z.string().min(10),
         supervisorId: z.number().optional(),
         isDraft: z.boolean().optional(),
@@ -656,7 +657,7 @@ const auditRouter = router({
         eventType: input.decision,
         detail: input.note ?? null,
       });
-      // Notify the submitter of the decision
+      // Notify the submitter of the decision (in-app)
       if (auditForDecide && auditForDecide.submittedById) {
         const deciderName = user.fullName ?? user.name ?? "Your supervisor";
         const refNum = auditForDecide.refNumber;
@@ -669,6 +670,17 @@ const auditRouter = router({
           message: `Your audit ${refNum} has been ${msgVerb} by ${deciderName}.${noteText}`,
         });
       }
+      // Send email notifications to submitter, collaborators, and acting consultant
+      if (auditForDecide) {
+        const actorName = user.fullName ?? user.name ?? "Your supervisor";
+        await sendAuditStatusEmails({
+          audit: auditForDecide,
+          decision: input.decision,
+          actorName,
+          actorEmail: user.email ?? null,
+          note: input.note ?? null,
+        });
+      }
       return { success: true };
     }),
 
@@ -677,6 +689,7 @@ const auditRouter = router({
     .mutation(async ({ input, ctx }) => {
       const user = await getUserById(ctx.user.id);
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const auditForArchive = await getAuditById(input.auditId);
       await updateAudit(input.auditId, { archived: input.archived });
       // Record audit trail event
       await createAuditEvent({
@@ -686,6 +699,16 @@ const auditRouter = router({
         eventType: input.archived ? "archived" : "unarchived",
         detail: null,
       });
+      // Send email notifications to submitter and collaborators
+      if (auditForArchive) {
+        const actorName = user.fullName ?? user.name ?? "An administrator";
+        await sendAuditStatusEmails({
+          audit: auditForArchive,
+          decision: input.archived ? "archived" : "unarchived",
+          actorName,
+          actorEmail: user.email ?? null,
+        });
+      }
       return { success: true };
     }),
 
@@ -722,7 +745,7 @@ const auditRouter = router({
         eventType: "reassigned",
         detail: supervisorName ? `Reassigned to ${supervisorName}` : "Supervisor removed",
       });
-      // Notify the newly assigned consultant (if any)
+      // Notify the newly assigned consultant (if any) — in-app
       if (input.supervisorId !== null && auditForReassign) {
         const adminName = user.fullName ?? user.name ?? "An administrator";
         const refNum = auditForReassign.refNumber;
@@ -731,6 +754,17 @@ const auditRouter = router({
           userId: user.id,
           type: "audit_reassigned",
           message: `${adminName} has assigned audit ${refNum} to you for review.`,
+        });
+      }
+      // Send email notifications to submitter, collaborators, and admin
+      if (auditForReassign) {
+        const actorName = user.fullName ?? user.name ?? "An administrator";
+        await sendAuditStatusEmails({
+          audit: auditForReassign,
+          decision: "reassigned",
+          actorName,
+          actorEmail: user.email ?? null,
+          newSupervisorName: supervisorName,
         });
       }
       return { success: true };

@@ -327,3 +327,32 @@
 - [x] Frontend: Sidebar badge — archiveMutation in AuditRegistry now invalidates myQueue and myConsultantQueue so badge updates live without page refresh
 - [x] DB: Remove extra test consultant names from consultantNames table, keep only the 14 original ENT names
 - [x] Vitest: updated mock data in notifications.test.ts and audit.trail.test.ts to include linkedConsultantId: 2 — all 112 tests passing
+
+## Round 20 — Email Notifications & Collaborator Name+Email Capture
+
+### Collaborator field update
+- [x] Frontend: Change collaborators field in SubmitAudit Step 1 from plain string chips to name+email pair entries ({name, email})
+- [x] Frontend: Update WizardData type — collaborators: {name: string; email: string}[]
+- [x] Frontend: Update collaborator UI — two inputs per row (Name + Email) with add/remove
+- [x] Frontend: Update ReviewRow display and PDF export to show "Name <email>" per collaborator
+- [x] Frontend: Update draft hydration to handle new collaborator shape (backward-compatible with old string drafts)
+- [x] Frontend: Update submit/save payloads — collaborators serialised as JSON array of {name, email}
+
+### Email notification infrastructure
+- [x] Backend: Install nodemailer + @types/nodemailer
+- [x] Backend: Create server/_core/email.ts — sendEmail(to, subject, html) helper using SMTP env vars (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM)
+- [x] Backend: Add SMTP env vars to ENV object in server/_core/env.ts
+- [x] Backend: Create buildAuditStatusEmail — returns {subject, html} for each event type (approved, rejected, reassigned, archived, unarchived)
+- [x] Backend: Create sendAuditStatusEmails — collects recipient list (submitter + collaborators + acting consultant) and calls sendEmail for each
+
+### Wire emails into procedures
+- [x] Backend: decide procedure — calls sendAuditStatusEmails after status update (approved/rejected)
+- [x] Backend: reassign procedure — calls sendAuditStatusEmails after reassignment
+- [x] Backend: archive procedure — calls sendAuditStatusEmails after archive/restore
+
+### Secrets
+- [ ] Request SMTP credentials from user (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM)
+
+### Tests
+- [x] Vitest: 23 new email helper unit tests in server/email.test.ts
+- [x] All 135 tests passing (up from 112)

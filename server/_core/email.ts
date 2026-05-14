@@ -1,0 +1,280 @@
+/**
+ * Outbound email helper for AuditFlow QAH.
+ *
+ * Uses nodemailer with SMTP credentials supplied via environment variables:
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_SECURE
+ *
+ * If SMTP_HOST is not configured the helper logs a warning and returns false
+ * so the rest of the application continues to work without email delivery.
+ */
+import nodemailer from "nodemailer";
+import { ENV } from "./env";
+
+export interface EmailPayload {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}
+
+let _transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (!ENV.smtpHost) return null;
+  if (_transporter) return _transporter;
+  _transporter = nodemailer.createTransport({
+    host: ENV.smtpHost,
+    port: ENV.smtpPort,
+    secure: ENV.smtpSecure,
+    auth: ENV.smtpUser
+      ? { user: ENV.smtpUser, pass: ENV.smtpPass }
+      : undefined,
+  });
+  return _transporter;
+}
+
+/**
+ * Send a single email. Returns true on success, false when SMTP is not
+ * configured or the upstream server rejects the message.
+ */
+export async function sendEmail(payload: EmailPayload): Promise<boolean> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    console.warn(
+      `[Email] SMTP not configured — skipping email to ${payload.to}: "${payload.subject}"`
+    );
+    return false;
+  }
+  try {
+    await transporter.sendMail({
+      from: ENV.smtpFrom,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+    });
+    console.info(`[Email] Sent "${payload.subject}" to ${payload.to}`);
+    return true;
+  } catch (err) {
+    console.warn(`[Email] Failed to send to ${payload.to}:`, err);
+    return false;
+  }
+}
+
+// ─── Email template builder ───────────────────────────────────────────────────
+
+interface AuditEmailContext {
+  refNumber: string;
+  topic: string;
+  submitterName: string;
+  actorName: string;
+  decision: "approved" | "rejected" | "reassigned" | "archived" | "unarchived";
+  note?: string | null;
+  newSupervisorName?: string | null;
+}
+
+function baseTemplate(title: string, bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body { margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background:#f4f6f9; }
+  .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+  .header { background:#003366; padding:24px 32px; }
+  .header h1 { margin:0; color:#ffffff; font-size:18px; font-weight:700; }
+  .header p { margin:4px 0 0; color:#a8c4e0; font-size:13px; }
+  .body { padding:28px 32px; }
+  .body p { margin:0 0 14px; font-size:14px; color:#333333; line-height:1.6; }
+  .audit-box { background:#f0f4fa; border-left:4px solid #003366; border-radius:4px; padding:14px 18px; margin:18px 0; }
+  .audit-box .ref { font-size:12px; color:#6b7280; margin:0 0 4px; }
+  .audit-box .title { font-size:15px; font-weight:700; color:#003366; margin:0; }
+  .badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+  .badge-approved { background:#d1fae5; color:#065f46; }
+  .badge-rejected { background:#fee2e2; color:#991b1b; }
+  .badge-reassigned { background:#ede9fe; color:#5b21b6; }
+  .badge-archived { background:#f3f4f6; color:#374151; }
+  .badge-unarchived { background:#f3f4f6; color:#374151; }
+  .note-box { background:#fffbeb; border:1px solid #fcd34d; border-radius:4px; padding:12px 16px; margin:14px 0; font-size:13px; color:#92400e; }
+  .footer { padding:16px 32px; background:#f9fafb; border-top:1px solid #e5e7eb; font-size:11px; color:#9ca3af; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>AuditFlow QAH</h1>
+    <p>Portsmouth Hospitals University NHS Trust — ENT Department</p>
+  </div>
+  <div class="body">
+    <h2 style="margin:0 0 16px;font-size:16px;color:#111827;">${title}</h2>
+    ${bodyHtml}
+  </div>
+  <div class="footer">
+    This is an automated message from AuditFlow QAH. Please do not reply to this email.
+    If you believe you received this in error, please contact your department audit lead.
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+export function buildAuditStatusEmail(
+  ctx: AuditEmailContext,
+  recipientName: string
+): { subject: string; html: string; text: string } {
+  const { refNumber, topic, actorName, decision, note, newSupervisorName } = ctx;
+
+  const badgeClass = `badge badge-${decision}`;
+  const decisionLabel =
+    decision === "approved"    ? "Approved"
+    : decision === "rejected"  ? "Rejected"
+    : decision === "reassigned" ? "Reassigned"
+    : decision === "archived"  ? "Archived"
+    : "Restored";
+
+  const auditBox = `
+    <div class="audit-box">
+      <p class="ref">Audit Reference: ${refNumber}</p>
+      <p class="title">${topic}</p>
+    </div>`;
+
+  let bodyHtml = `<p>Dear ${recipientName},</p>`;
+  let subject = "";
+  let plainText = "";
+
+  if (decision === "approved") {
+    subject = `[AuditFlow] Audit ${refNumber} has been approved`;
+    bodyHtml += `
+      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      ${auditBox}`;
+    plainText = `Your audit ${refNumber} ("${topic}") has been approved by ${actorName}.`;
+  } else if (decision === "rejected") {
+    subject = `[AuditFlow] Audit ${refNumber} has been rejected`;
+    bodyHtml += `
+      <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      ${auditBox}`;
+    plainText = `Your audit ${refNumber} ("${topic}") has been rejected by ${actorName}.`;
+  } else if (decision === "reassigned") {
+    subject = `[AuditFlow] Audit ${refNumber} has been reassigned`;
+    const supText = newSupervisorName
+      ? `The audit has been reassigned to <strong>${newSupervisorName}</strong>.`
+      : "The supervising consultant assignment has been removed.";
+    bodyHtml += `
+      <p>An update has been made to the following audit by <strong>${actorName}</strong>:</p>
+      ${auditBox}
+      <p>${supText}</p>`;
+    plainText = `Audit ${refNumber} ("${topic}") has been reassigned by ${actorName}. ${newSupervisorName ? `New supervisor: ${newSupervisorName}.` : "Supervisor removed."}`;
+  } else if (decision === "archived") {
+    subject = `[AuditFlow] Audit ${refNumber} has been archived`;
+    bodyHtml += `
+      <p>The following audit has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${actorName}</strong>.</p>
+      ${auditBox}
+      <p>Archived audits are hidden from the active registry but remain accessible to administrators.</p>`;
+    plainText = `Audit ${refNumber} ("${topic}") has been archived by ${actorName}.`;
+  } else {
+    subject = `[AuditFlow] Audit ${refNumber} has been restored`;
+    bodyHtml += `
+      <p>The following audit has been <span class="${badgeClass}">Restored</span> by <strong>${actorName}</strong> and is now active again.</p>
+      ${auditBox}`;
+    plainText = `Audit ${refNumber} ("${topic}") has been restored by ${actorName}.`;
+  }
+
+  if (note) {
+    bodyHtml += `<div class="note-box"><strong>Note from ${actorName}:</strong> ${note}</div>`;
+    plainText += ` Note: "${note}"`;
+  }
+
+  bodyHtml += `<p style="margin-top:20px;font-size:13px;color:#6b7280;">
+    Please log in to <a href="https://auditqah-436kjx9h.manus.space" style="color:#003366;">AuditFlow QAH</a> to view the full audit details.
+  </p>`;
+
+  return { subject, html: baseTemplate(subject, bodyHtml), text: plainText };
+}
+
+// ─── Collaborator type ────────────────────────────────────────────────────────
+
+export interface CollaboratorEntry {
+  name: string;
+  email: string;
+}
+
+export function parseCollaborators(raw: string | null | undefined): CollaboratorEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is CollaboratorEntry =>
+        typeof c === "object" && c !== null && typeof c.email === "string" && c.email.includes("@")
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Send audit status notification emails to all relevant parties:
+ *  - The submitter (if they have an email)
+ *  - Each collaborator with a valid email
+ *  - The acting consultant/admin (if they have an email and are different from the submitter)
+ *
+ * Failures are logged but never throw — email is best-effort.
+ */
+export async function sendAuditStatusEmails(opts: {
+  audit: {
+    refNumber: string;
+    topic: string | null;
+    submitterName: string | null;
+    submitterEmail: string | null;
+    collaborators: string | null;
+  };
+  decision: AuditEmailContext["decision"];
+  actorName: string;
+  actorEmail?: string | null;
+  note?: string | null;
+  newSupervisorName?: string | null;
+}): Promise<void> {
+  const { audit, decision, actorName, actorEmail, note, newSupervisorName } = opts;
+
+  const ctx: AuditEmailContext = {
+    refNumber: audit.refNumber,
+    topic: audit.topic ?? "Untitled Audit",
+    submitterName: audit.submitterName ?? "Auditor",
+    actorName,
+    decision,
+    note,
+    newSupervisorName,
+  };
+
+  const recipients: { name: string; email: string }[] = [];
+
+  // 1. Submitter
+  if (audit.submitterEmail) {
+    recipients.push({
+      name: audit.submitterName ?? "Auditor",
+      email: audit.submitterEmail,
+    });
+  }
+
+  // 2. Collaborators
+  const collabs = parseCollaborators(audit.collaborators);
+  for (const c of collabs) {
+    if (c.email && !recipients.find(r => r.email === c.email)) {
+      recipients.push({ name: c.name || c.email, email: c.email });
+    }
+  }
+
+  // 3. Acting consultant/admin (if different from submitter)
+  if (actorEmail && !recipients.find(r => r.email === actorEmail)) {
+    recipients.push({ name: actorName, email: actorEmail });
+  }
+
+  // Send emails concurrently (best-effort)
+  await Promise.allSettled(
+    recipients.map(async (r) => {
+      const { subject, html, text } = buildAuditStatusEmail(ctx, r.name);
+      await sendEmail({ to: r.email, subject, html, text });
+    })
+  );
+}
