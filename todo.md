@@ -470,3 +470,14 @@
 - [x] Write server/email-escape.test.ts — 15 tests covering escapeHtml, safeSubject, and buildAuditStatusEmail with malicious inputs
 - [x] Run pnpm test and pnpm check — all pass (174 tests, 0 TypeScript errors)
 - [x] Verified: git grep shows all HTML interpolations use e-prefixed escaped variables
+
+## Tranche A — Prompt 7: CSRF Protection and Tighter Cookie Defaults
+
+- [x] server/_core/cookies.ts: change sameSite from "none" to "lax"
+- [x] server/_core/cookies.ts: force secure=true when NODE_ENV === "production" (never ship cookie in cleartext in prod)
+- [x] client/src/main.tsx: add headers() callback to httpBatchLink sending x-auditflow-client: 1 on every tRPC request
+- [x] server/_core/index.ts: export csrfProtection middleware; apply it before the tRPC handler on /api/trpc
+- [x] csrfProtection: rejects POST/PUT/PATCH/DELETE without x-auditflow-client: 1 header with 403; allows GET/HEAD/OPTIONS
+- [x] server/auth.logout.test.ts: update sameSite assertion from "none" to "lax"
+- [x] server/csrf.test.ts: 10 tests covering all HTTP methods, correct/incorrect/missing header values
+- [x] Run pnpm test and pnpm check — all pass (184 tests, 0 TypeScript errors)

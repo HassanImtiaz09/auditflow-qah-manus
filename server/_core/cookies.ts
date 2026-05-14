@@ -24,25 +24,19 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
-
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
+  // SameSite=Lax: cookies are sent on top-level navigations (links, redirects)
+  // but NOT on cross-site sub-resource requests (fetch, XHR from a foreign origin).
+  // This is sufficient for this app and prevents CSRF without requiring a token.
+  //
+  // secure: always true in production so the cookie is never sent over cleartext.
+  // In development we honour the actual request protocol to allow http://localhost.
+  const isProduction = process.env.NODE_ENV === "production";
+  const secure = isProduction || isSecureRequest(req);
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    sameSite: "lax",
+    secure,
   };
 }

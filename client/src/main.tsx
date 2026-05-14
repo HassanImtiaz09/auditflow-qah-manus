@@ -42,6 +42,12 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
+      // Send a custom header on every tRPC request so the server can distinguish
+      // legitimate app requests from cross-site forgery attempts (defence-in-depth
+      // alongside SameSite=Lax cookies).
+      headers() {
+        return { "x-auditflow-client": "1" };
+      },
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),
