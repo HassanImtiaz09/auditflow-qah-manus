@@ -517,3 +517,44 @@ export async function getNextRefCounter(date: string): Promise<number> {
   if (counter == null) throw new Error(`refCounters row missing for date ${date}`);
   return counter;
 }
+
+// ─── Deadline reminder helpers ────────────────────────────────────────────────
+
+/**
+ * Return all active (non-archived) audits in 'pending' or 'approved' status
+ * that have a non-null auditEndDate. Used by the deadline-reminder cron handler
+ * to identify audits approaching their deadline.
+ */
+export async function getAuditsForDeadlineReminder() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(
+      and(
+        eq(audits.archived, false),
+        or(eq(audits.status, "pending"), eq(audits.status, "approved")),
+        sql`${audits.auditEndDate} IS NOT NULL`
+      )
+    );
+}
+
+/**
+ * Mark a reminder as sent by setting the appropriate timestamp column.
+ * @param id       The audit ID
+ * @param field    Which reminder column to update: "reminder7SentAt" | "reminder1SentAt"
+ * @param sentAt   The timestamp to record (defaults to now)
+ */
+export async function updateAuditReminderSent(
+  id: number,
+  field: "reminder7SentAt" | "reminder1SentAt",
+  sentAt: Date = new Date()
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(audits)
+    .set({ [field]: sentAt })
+    .where(eq(audits.id, id));
+}

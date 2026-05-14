@@ -10,6 +10,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
+// ─── Mock email to prevent real Resend API calls in tests ───────────────────
+
+vi.mock("./_core/email", () => ({
+  sendAuditStatusEmails: vi.fn().mockResolvedValue(undefined),
+  sendAuditSubmissionEmails: vi.fn().mockResolvedValue(undefined),
+  sendDeadlineReminderEmail: vi.fn().mockResolvedValue(true),
+  sendVerificationEmail: vi.fn().mockResolvedValue(false),
+  sendRegistrationConfirmationEmail: vi.fn().mockResolvedValue(false),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(false),
+  escapeHtml: (s: string) => s,
+  safeSubject: (s: string) => s,
+}));
+
 // ─── Mock database helpers ────────────────────────────────────────────────────
 
 vi.mock("./db", async (importOriginal) => {

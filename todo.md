@@ -500,3 +500,16 @@
 - [x] server/routers.ts: replace racy countAudits()+1 pattern with getNextRefCounter() in audits.submit
 - [x] server/ref-counter.test.ts: 10 concurrent submit calls, assert all refNumbers unique
 - [x] Run pnpm test and pnpm check — all pass (197 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 10: Deadline-Reminder Scheduled Task
+
+- [x] drizzle/schema.ts: add reminder7SentAt and reminder1SentAt timestamp null columns to audits
+- [x] Run pnpm db:push to create the migration and apply it (migration: 0015_new_madame_masque.sql)
+- [x] server/_core/email.ts: add sendDeadlineReminderEmail helper with escapeHtml applied
+- [x] server/db.ts: add getAuditsForDeadlineReminder() helper (pending/approved, not archived, auditEndDate not null)
+- [x] server/db.ts: add updateAuditReminderSent(id, field, timestamp) helper
+- [x] server/_core/index.ts: add GET /api/scheduled/deadline-reminders route with CRON_SECRET auth
+- [x] server/deadlineReminders.ts: handler with daysRemaining/inWindow/parseCollaborators helpers; cron registered via CLI (not on boot, per periodic-updates.md §4a)
+- [x] server/deadline-reminder.test.ts: 18 tests — auth, unit helpers, window logic, collaborator emails, multi-audit counting
+- [x] CRON_SECRET set via webdev_request_secrets; placeholder added to .env.example
+- [x] Run pnpm test and pnpm check — all pass (219 tests, 0 TypeScript errors)

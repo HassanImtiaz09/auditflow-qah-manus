@@ -10,6 +10,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { deadlineRemindersHandler } from "../deadlineReminders";
 
 // ─── CSRF defence-in-depth ────────────────────────────────────────────────────
 
@@ -159,6 +160,18 @@ async function startServer() {
 
   // CSRF check — defence-in-depth on top of SameSite=Lax cookies
   app.use("/api/trpc", csrfProtection);
+
+  // ── Scheduled cron handlers ─────────────────────────────────────────────
+  // Mounted before tRPC so they are not subject to the CSRF header check.
+  // Auth is handled inside each handler via x-cron-secret.
+  //
+  // To register the cron job after deployment, run once from the sandbox CLI:
+  //   manus-heartbeat create \
+  //     --name deadline-reminders \
+  //     --cron "0 0 7 * * *" \
+  //     --path /api/scheduled/deadline-reminders \
+  //     --description "Daily 07:00 UTC deadline reminder emails"
+  app.get("/api/scheduled/deadline-reminders", deadlineRemindersHandler);
 
   // tRPC API
   app.use(

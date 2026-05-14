@@ -554,3 +554,62 @@ export async function sendPasswordResetEmail(opts: {
     text: `Dear ${recipientName},\n\nTo reset your AuditFlow QAH password, visit:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request a password reset, ignore this email.`,
   });
 }
+
+// ─── Deadline reminder email ──────────────────────────────────────────────────
+
+export interface DeadlineReminderContext {
+  to: string;
+  recipientName: string;
+  refNumber: string;
+  topic: string;
+  daysRemaining: number;
+  auditEndDate: Date;
+}
+
+/**
+ * Send a deadline reminder email to a single recipient.
+ * Used by the scheduled deadline-reminders handler for both 7-day and 1-day
+ * windows. Returns true if the email was dispatched successfully.
+ */
+export async function sendDeadlineReminderEmail(
+  opts: DeadlineReminderContext
+): Promise<boolean> {
+  const { to, recipientName, refNumber, topic, daysRemaining, auditEndDate } = opts;
+
+  const eRecipientName = escapeHtml(recipientName);
+  const eRefNumber = escapeHtml(refNumber);
+  const eTopic = escapeHtml(topic);
+  const eDaysRemaining = escapeHtml(String(daysRemaining));
+  const eDeadlineDate = escapeHtml(
+    auditEndDate.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+  );
+
+  const urgency = daysRemaining <= 1 ? "tomorrow" : `in ${eDaysRemaining} days`;
+  const urgencyLabel = daysRemaining <= 1 ? "1-Day Reminder" : "7-Day Reminder";
+
+  const bodyHtml = `
+    <p>Dear ${eRecipientName},</p>
+    <p>This is a reminder that the following clinical audit is due <strong>${urgency}</strong>.</p>
+    <div class="audit-box">
+      <p class="ref">${eRefNumber}</p>
+      <p class="title">${eTopic}</p>
+    </div>
+    <p><strong>Deadline:</strong> ${eDeadlineDate}</p>
+    <p>Please ensure all data collection is complete and the audit is ready for submission before the deadline. If you need an extension, contact your assigned consultant or the audit administrator.</p>
+    <p style="font-size:12px;color:#6b7280;">You are receiving this message because you are listed as a submitter or collaborator on this audit.</p>`;
+
+  const subject = safeSubject(
+    `[AuditFlow] ${urgencyLabel}: "${topic}" due ${urgency} — ${refNumber}`
+  );
+
+  return sendEmail({
+    to,
+    subject,
+    html: baseTemplate(subject, bodyHtml),
+    text: `Dear ${recipientName},\n\nThis is a reminder that the audit "${topic}" (${refNumber}) is due ${urgency} on ${auditEndDate.toLocaleDateString("en-GB")}.\n\nPlease ensure all data collection is complete before the deadline.\n\nAuditFlow QAH`,
+  });
+}

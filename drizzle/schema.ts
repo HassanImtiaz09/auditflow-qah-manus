@@ -158,6 +158,12 @@ export const audits = mysqlTable("audits", {
   linkedAuditId: int("linkedAuditId"),
   /** Denormalised ref number of the linked parent audit for display */
   linkedAuditRef: varchar("linkedAuditRef", { length: 64 }),
+
+  // ── Deadline reminder tracking ────────────────────────────────────────────
+  /** Timestamp when the 7-day deadline reminder was sent; null = not yet sent */
+  reminder7SentAt: timestamp("reminder7SentAt"),
+  /** Timestamp when the 1-day deadline reminder was sent; null = not yet sent */
+  reminder1SentAt: timestamp("reminder1SentAt"),
 });
 
 export type Audit = typeof audits.$inferSelect;
