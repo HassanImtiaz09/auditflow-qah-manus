@@ -513,3 +513,12 @@
 - [x] server/deadline-reminder.test.ts: 18 tests — auth, unit helpers, window logic, collaborator emails, multi-audit counting
 - [x] CRON_SECRET set via webdev_request_secrets; placeholder added to .env.example
 - [x] Run pnpm test and pnpm check — all pass (219 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 11: Reconcile role/auditRole Split
+
+- [x] drizzle/schema.ts: document `role` as legacy/Manus-template at the top; mark it must not be used for access decisions
+- [x] server/_core/trpc.ts: change adminProcedure check from `ctx.user.role !== 'admin'` to `ctx.user.auditRole !== 'admin'`
+- [x] server/db.ts upsertUser: remove `role = "admin"` for ownerOpenId; replace with `auditRole = "admin"`, `approved = true`, `roleApproved = true`
+- [x] Database migration: backfill `auditRole = "admin"` for any user where `role = "admin"` (applied via webdev_execute_sql; 1 row updated)
+- [x] Audit all `user.role` references in server/, client/, shared/ and migrate to `auditRole` or remove (routers.ts auth.login fixed; UserSwitcher uses legacy demo store only)
+- [x] Run pnpm test and pnpm check — all pass (219 tests, 0 TypeScript errors)

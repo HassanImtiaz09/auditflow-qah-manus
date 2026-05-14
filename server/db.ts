@@ -35,8 +35,15 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (user.auditRole !== undefined) { values.auditRole = user.auditRole; updateSet.auditRole = user.auditRole; }
   if (user.approved !== undefined) { values.approved = user.approved; updateSet.approved = user.approved; }
   if (user.roleApproved !== undefined) { values.roleApproved = user.roleApproved; updateSet.roleApproved = user.roleApproved; }
+  // `role` is legacy/Manus-template — pass through if explicitly provided, but do not use for access decisions.
+  // Access decisions must use `auditRole` (canonical).
   if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
-  else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
+  // Ensure the platform owner always has admin auditRole, is approved, and has roleApproved.
+  if (user.openId === ENV.ownerOpenId) {
+    if (user.auditRole === undefined) { values.auditRole = "admin"; updateSet.auditRole = "admin"; }
+    if (user.approved === undefined) { values.approved = true; updateSet.approved = true; }
+    if (user.roleApproved === undefined) { values.roleApproved = true; updateSet.roleApproved = true; }
+  }
 
   values.lastSignedIn = new Date();
   updateSet.lastSignedIn = new Date();

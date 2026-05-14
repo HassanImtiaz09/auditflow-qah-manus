@@ -198,7 +198,8 @@ const authRouter = router({
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password." });
 
       // Block login for unverified email addresses (skip for admin accounts)
-      if (!user.emailVerified && user.role !== "admin") {
+      // Use auditRole (canonical) — role is legacy/Manus-template
+      if (!user.emailVerified && user.auditRole !== "admin") {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "EMAIL_NOT_VERIFIED",
@@ -219,6 +220,7 @@ const authRouter = router({
           email: user.email,
           grade: user.grade,
           auditRole: user.auditRole,
+          // role is legacy/Manus-template — included for client compatibility only; do not use for access decisions
           role: user.role,
         },
       };

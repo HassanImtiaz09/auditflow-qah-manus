@@ -18,7 +18,12 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }).unique(),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  /** System role: admin | user (Manus template default) */
+  /**
+   * @legacy Manus-template system role ("user" | "admin").
+   * MUST NOT be used for any access-control decision in AuditFlow code.
+   * The canonical role field is `auditRole` below.
+   * Kept for template compatibility only; do not read in new procedures.
+   */
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

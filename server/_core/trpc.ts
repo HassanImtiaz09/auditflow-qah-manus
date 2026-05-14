@@ -31,7 +31,8 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    // Use auditRole (canonical) — role is legacy/Manus-template and must not be used for access decisions
+    if (!ctx.user || ctx.user.auditRole !== 'admin') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
