@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { createServer } from "http";
 import net from "net";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
@@ -145,6 +146,54 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // ── Security headers ───────────────────────────────────────────────────────
+  // Helmet is applied in both dev and production. CSP uses 'unsafe-inline' for
+  // style-src because Tailwind CSS and shadcn/ui inject inline styles at runtime.
+  // Vite HMR in dev mode uses WebSocket on the same origin, which is covered by
+  // connect-src 'self'. If HMR breaks, gate this block with:
+  //   if (process.env.NODE_ENV !== 'development') { ... }
+  app.disable("x-powered-by");
+  app.use(
+    helmet({
+      // HSTS: tell browsers to always use HTTPS for 1 year
+      hsts: {
+        maxAge: 31_536_000,         // 1 year in seconds
+        includeSubDomains: true,
+        preload: false,
+      },
+      // Prevent the page from being embedded in iframes on other origins
+      frameguard: { action: "deny" },
+      // Only send the origin (no path/query) in the Referer header
+      referrerPolicy: { policy: "same-origin" },
+      // Content Security Policy
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          // Allow scripts only from same origin (no inline scripts, no eval)
+          scriptSrc: ["'self'"],
+          // Tailwind / shadcn/ui require inline styles at runtime
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          // Allow images from same origin, data URIs, and known CDN hosts
+          imgSrc: [
+            "'self'",
+            "data:",
+            "https://d2xsxph8kpxj0f.cloudfront.net",
+            "https://media.base44.com",
+          ],
+          // API calls and WebSocket (Vite HMR) must stay on same origin
+          connectSrc: ["'self'"],
+          // Disallow all plugins (Flash, Java, etc.)
+          objectSrc: ["'none'"],
+          // Prevent base-tag hijacking
+          baseUri: ["'self'"],
+          // Disallow framing from any origin (belt-and-suspenders with frameguard)
+          frameAncestors: ["'none'"],
+        },
+      },
+    })
+  );
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

@@ -522,3 +522,12 @@
 - [x] Database migration: backfill `auditRole = "admin"` for any user where `role = "admin"` (applied via webdev_execute_sql; 1 row updated)
 - [x] Audit all `user.role` references in server/, client/, shared/ and migrate to `auditRole` or remove (routers.ts auth.login fixed; UserSwitcher uses legacy demo store only)
 - [x] Run pnpm test and pnpm check — all pass (219 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 12: Helmet, CSP, and Security Headers
+
+- [x] pnpm add helmet (helmet 8.1.0)
+- [x] server/_core/index.ts: app.use(helmet({...})) with HSTS (31536000s, includeSubDomains), frameguard (deny), referrerPolicy (same-origin), CSP directives
+- [x] server/_core/index.ts: app.disable("x-powered-by")
+- [x] Helmet applied in both dev and production — Vite HMR unaffected (connect-src 'self' covers WebSocket)
+- [x] server/security-headers.test.ts: 13 smoke tests asserting HSTS, X-Frame-Options, Referrer-Policy, X-Content-Type-Options, no X-Powered-By, CSP directives
+- [x] Run pnpm test and pnpm check — all pass (232 tests, 0 TypeScript errors)
