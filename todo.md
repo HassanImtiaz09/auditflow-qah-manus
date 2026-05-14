@@ -405,3 +405,15 @@
 - [x] Tests: added hash round-trip test — stores hashed token, calls resetPassword with raw token, verifies success
 - [x] Verify: grep for `return { success: true, token }` — zero matches confirmed
 - [x] All 135 tests passing
+
+## Tranche A — Prompt 2: Remove Seed-Consultants Backdoor
+
+- [x] Rewrite seed-consultants.mjs — seeds consultantNames table only (no users rows, no passwords, no bcrypt)
+- [x] Uses INSERT IGNORE keyed on fullName so the script is safe to re-run
+- [x] Removed all references to shared default password and bcrypt import from seed-consultants.mjs
+- [x] Updated top comment to explain real consultant registration flow
+- [x] Wrote cleanup-seeded-users.mjs — deletes users rows with openId like consultant-SLUG
+- [x] Added db:seed npm script in package.json
+- [x] Ran cleanup-seeded-users.mjs on live DB — no backdoor accounts found (already clean)
+- [x] Ran pnpm db:seed — all 14 consultants inserted into consultantNames successfully
+- [x] Verified: git grep for shared default password returns zero matches in source files (only in todo.md text)
