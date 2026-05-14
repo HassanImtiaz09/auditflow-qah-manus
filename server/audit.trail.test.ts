@@ -29,6 +29,9 @@ vi.mock("./db", async (importOriginal) => {
     updateAudit: vi.fn(),
     // Helpers needed by audits.reassign
     getApprovedConsultants: vi.fn(),
+    getConsultantNameById: vi.fn(),       // supervisorId -> consultantNames row
+    getUserByLinkedConsultantId: vi.fn(), // consultantNames.id -> user account
+    createNotification: vi.fn(),
     // Helpers needed by audits.archive
     getAllAudits: vi.fn(),
   };
@@ -42,6 +45,8 @@ import {
   createAudit,
   getAuditById,
   updateAudit,
+  getConsultantNameById,
+  getUserByLinkedConsultantId,
 } from "./db";
 
 // ─── Context factories ────────────────────────────────────────────────────────
@@ -341,9 +346,17 @@ describe("audits.reassign — audit trail recording", () => {
   });
 
   it("records a 'reassigned' event with the new supervisor name", async () => {
-    vi.mocked(getUserById)
-      .mockResolvedValueOnce(MOCK_ADMIN_DB_USER) // actor (admin performing the reassign)
-      .mockResolvedValueOnce(MOCK_CONSULTANT_DB_USER); // new supervisor lookup
+    // reassign now uses getConsultantNameById (not getUserById) for supervisor name resolution
+    vi.mocked(getUserById).mockResolvedValueOnce(MOCK_ADMIN_DB_USER); // actor only
+    vi.mocked(getConsultantNameById).mockResolvedValue({
+      id: 2,
+      title: "Dr",
+      fullName: "Test Consultant",
+      grade: "Consultant",
+      active: true,
+      createdAt: new Date(),
+    });
+    vi.mocked(getUserByLinkedConsultantId).mockResolvedValue(MOCK_CONSULTANT_DB_USER);
     vi.mocked(getAuditById).mockResolvedValue(MOCK_PENDING_AUDIT);
     vi.mocked(updateAudit).mockResolvedValue({
       ...MOCK_PENDING_AUDIT,
@@ -362,7 +375,7 @@ describe("audits.reassign — audit trail recording", () => {
         auditId: 10,
         actorId: 3,
         eventType: "reassigned",
-        detail: expect.stringContaining("Dr Test Consultant"),
+        detail: expect.stringContaining("Test Consultant"),
       })
     );
   });
@@ -405,6 +418,11 @@ describe("audits.submit — audit trail recording", () => {
     vi.mocked(countAudits).mockResolvedValue(0);
     vi.mocked(createAudit).mockResolvedValue({ ...MOCK_PENDING_AUDIT, id: 11 });
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);
+    // submit calls getConsultantNameById when supervisorId is provided
+    vi.mocked(getConsultantNameById).mockResolvedValue({
+      id: 2, title: "Dr", fullName: "Test Consultant", grade: "Consultant", active: true, createdAt: new Date(),
+    });
+    vi.mocked(getUserByLinkedConsultantId).mockResolvedValue(MOCK_CONSULTANT_DB_USER);
 
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
@@ -416,6 +434,7 @@ describe("audits.submit — audit trail recording", () => {
       topic: "Hearing Aid Follow-up",
       description: "Audit of hearing aid follow-up protocols in ENT outpatient",
       isDraft: false,
+      supervisorId: 2,
       auditObjectives: "To assess compliance with hearing aid follow-up protocols.",
       auditStandards: JSON.stringify([{ standard: "NICE NG98", criteria: "All patients", compliance: "90%", exceptions: "" }]),
       dataCollectionMethodDetail: "Retrospective review of patient records.",

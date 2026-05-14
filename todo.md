@@ -417,3 +417,18 @@
 - [x] Ran cleanup-seeded-users.mjs on live DB — no backdoor accounts found (already clean)
 - [x] Ran pnpm db:seed — all 14 consultants inserted into consultantNames successfully
 - [x] Verified: git grep for shared default password returns zero matches in source files (only in todo.md text)
+
+## Tranche A — Prompt 3: Fix supervisorId/linkedConsultantId/users.id Confusion
+
+- [x] Add getConsultantNameById(id) helper to server/db.ts
+- [x] Fix (a) audits.submit: replaced getUserById(input.supervisorId) with getConsultantNameById; supervisorName derived as `${title} ${fullName}`
+- [x] Fix (a) audits.updateDraft: same replacement for supervisorId resolution
+- [x] Fix (b) audits.reassign: replaced getUserById(input.supervisorId) with getConsultantNameById; removed auditRole check
+- [x] Fix (c) audits.reassign notification: looks up user via getUserByLinkedConsultantId(input.supervisorId); skips notification if no linked user
+- [x] Fix (d) audits.comments: replaced audit.supervisorId === actor.id with actor.linkedConsultantId !== null && audit.supervisorId === actor.linkedConsultantId
+- [x] Fix (e) audits.addComment: same replacement as (d)
+- [x] Fix (f) audits.myConsultantQueue: replaced user.id lookup with user.linkedConsultantId lookup
+- [x] Added invariant comment block at top of auditRouter in routers.ts
+- [x] Wrote server/supervisor-scoping.test.ts with 7 pinned invariant tests across 4 describe blocks
+- [x] All 142 tests passing
+- [x] Verified: git grep -n "getUserById.*supervisorId" server/ returns zero matches (only in comment)

@@ -73,6 +73,7 @@ import {
   getUserByEmailVerifyToken,
   setEmailVerifyToken,
   markEmailVerified,
+  getConsultantNameById,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -338,6 +339,20 @@ const authRouter = router({
 });
 
 // ─── Audit Router ─────────────────────────────────────────────────────────────
+//
+// SUPERVISOR ID INVARIANTS — read before touching any supervisor-related code:
+//
+//  1. `audits.supervisorId`      always stores a `consultantNames.id` (the roster entry).
+//  2. `users.linkedConsultantId` always stores a `consultantNames.id` for consultant accounts
+//                                (null for clinicians and admins).
+//  3. To check "is this user the assigned supervisor of this audit?":
+//        audit.supervisorId === user.linkedConsultantId && user.linkedConsultantId !== null
+//  4. To find the user account assigned to an audit:
+//        getUserByLinkedConsultantId(audit.supervisorId)
+//  5. To get the display name of an audit's supervisor:
+//        getConsultantNameById(audit.supervisorId)  — NOT getUserById(audit.supervisorId)
+//
+// ─────────────────────────────────────────────────────────────────────────────
 
 const auditRouter = router({
   list: protectedProcedure.query(async () => {
@@ -498,8 +513,9 @@ const auditRouter = router({
         if (supervisorId === null) {
           supervisorName = null;
         } else {
-          const sup = await getUserById(supervisorId);
-          supervisorName = sup ? (sup.fullName ?? sup.name ?? null) : null;
+          // supervisorId is a consultantNames.id — look up the roster entry, not a user account
+          const sup = await getConsultantNameById(supervisorId);
+          supervisorName = sup ? `${sup.title ? sup.title + " " : ""}${sup.fullName}`.trim() : null;
         }
       }
 
@@ -653,12 +669,12 @@ const auditRouter = router({
       const seq = String(total + 1).padStart(4, "0");
       const refNumber = `REF-${y}${mo}${dy}-${seq}`;
 
-      let supervisorName: string | null = null;
+       let supervisorName: string | null = null;
       if (input.supervisorId) {
-        const sup = await getUserById(input.supervisorId);
-        supervisorName = sup ? (sup.fullName ?? sup.name ?? null) : null;
+        // supervisorId is a consultantNames.id — look up the roster entry, not a user account
+        const sup = await getConsultantNameById(input.supervisorId);
+        supervisorName = sup ? `${sup.title ? sup.title + " " : ""}${sup.fullName}`.trim() : null;
       }
-
       const audit = await createAudit({
         refNumber,
         submittedById: user.id,
@@ -832,11 +848,12 @@ const auditRouter = router({
       if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       let supervisorName: string | null = null;
       if (input.supervisorId !== null) {
-        const sup = await getUserById(input.supervisorId);
-        if (!sup || (sup.auditRole !== "consultant" && sup.auditRole !== "admin")) {
+        // supervisorId is a consultantNames.id — validate against the roster, not user accounts
+        const sup = await getConsultantNameById(input.supervisorId);
+        if (!sup || !sup.active) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid consultant selected." });
         }
-        supervisorName = sup.fullName ?? sup.name ?? null;
+        supervisorName = `${sup.title ? sup.title + " " : ""}${sup.fullName}`.trim();
       }
       const auditForReassign = await getAuditById(input.auditId);
       await updateAudit(input.auditId, {
@@ -852,15 +869,19 @@ const auditRouter = router({
         detail: supervisorName ? `Reassigned to ${supervisorName}` : "Supervisor removed",
       });
       // Notify the newly assigned consultant (if any) — in-app
+      // Look up the user account linked to this consultantNames row (may be null if not yet registered)
       if (input.supervisorId !== null && auditForReassign) {
-        const adminName = user.fullName ?? user.name ?? "An administrator";
-        const refNum = auditForReassign.refNumber;
-        await createNotification({
-          recipientId: input.supervisorId,
-          userId: user.id,
-          type: "audit_reassigned",
-          message: `${adminName} has assigned audit ${refNum} to you for review.`,
-        });
+        const consultantUser = await getUserByLinkedConsultantId(input.supervisorId);
+        if (consultantUser) {
+          const adminName = user.fullName ?? user.name ?? "An administrator";
+          const refNum = auditForReassign.refNumber;
+          await createNotification({
+            recipientId: consultantUser.id,
+            userId: user.id,
+            type: "audit_reassigned",
+            message: `${adminName} has assigned audit ${refNum} to you for review.`,
+          });
+        }
       }
       // Send email notifications to submitter, collaborators, and admin
       if (auditForReassign) {
@@ -916,17 +937,21 @@ const auditRouter = router({
     if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
       return { pending: [], approved: [], rejected: [] };
     }
-    // supervisorId on audits refers to the seeded consultant record's id.
-    // For a linked consultant account, use linkedConsultantId to look up their seeded record.
-    // For admin, fall back to user.id (admins are not linked to seeded consultants).
-    const lookupId = user.auditRole === "consultant" && user.linkedConsultantId
-      ? user.linkedConsultantId
-      : user.id;
-    const all = await getAuditsForConsultantAll(lookupId);
-    const mapped = all.map((a) => ({
-      ...a,
-      collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
-    }));
+    // supervisorId on audits is a consultantNames.id.
+    // Consultants look up their assigned audits via linkedConsultantId.
+    // Admins are NOT supervisors — return all non-draft audits for admin overview.
+    let mapped: ReturnType<typeof Object.assign>[];
+    if (user.auditRole === "admin") {
+      const all = await getAllAudits();
+      mapped = all
+        .filter((a) => a.status !== "draft")
+        .map((a) => ({ ...a, collaborators: a.collaborators ? JSON.parse(a.collaborators) : [] }));
+    } else {
+      // Consultant: must have linkedConsultantId set to see any audits
+      const lookupId = user.linkedConsultantId ?? -1;
+      const all = await getAuditsForConsultantAll(lookupId);
+      mapped = all.map((a) => ({ ...a, collaborators: a.collaborators ? JSON.parse(a.collaborators) : [] }));
+    }
     return {
       pending: mapped.filter((a) => a.status === "pending"),
       approved: mapped.filter((a) => a.status === "approved"),
@@ -955,11 +980,12 @@ const auditRouter = router({
       if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
       const audit = await getAuditById(input.auditId);
       if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
-      // Only the submitter, assigned supervisor, or admin can read comments
+      // Only the submitter, assigned supervisor, or admin can read comments.
+      // supervisorId is a consultantNames.id; compare against actor.linkedConsultantId (not actor.id).
       const isAllowed =
         actor.auditRole === "admin" ||
         audit.submittedById === actor.id ||
-        audit.supervisorId === actor.id;
+        (actor.linkedConsultantId !== null && actor.linkedConsultantId !== undefined && audit.supervisorId === actor.linkedConsultantId);
       if (!isAllowed) throw new TRPCError({ code: "FORBIDDEN" });
       return getAuditComments(input.auditId);
     }),
@@ -1007,11 +1033,12 @@ const auditRouter = router({
       if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
       const audit = await getAuditById(input.auditId);
       if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
-      // Only the submitter, assigned supervisor, or admin can comment
+      // Only the submitter, assigned supervisor, or admin can comment.
+      // supervisorId is a consultantNames.id; compare against actor.linkedConsultantId (not actor.id).
       const isAllowed =
         actor.auditRole === "admin" ||
         audit.submittedById === actor.id ||
-        audit.supervisorId === actor.id;
+        (actor.linkedConsultantId !== null && actor.linkedConsultantId !== undefined && audit.supervisorId === actor.linkedConsultantId);
       if (!isAllowed) throw new TRPCError({ code: "FORBIDDEN" });
 
       const comment = await createAuditComment({

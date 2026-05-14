@@ -68,6 +68,8 @@ const CONSULTANT_DB = {
   ...CLINICIAN_DB, id: 2, openId: "local-consultant",
   email: "consultant@nhs.net", name: "Dr Consultant", fullName: "Dr Consultant",
   grade: "Consultant", auditRole: "consultant" as const,
+  // supervisorId on audits is a consultantNames.id; linkedConsultantId must match for access check
+  linkedConsultantId: 2,
 };
 
 const ADMIN_DB = {

@@ -22,6 +22,8 @@ vi.mock("./db", async (importOriginal) => {
     createAuditEvent: vi.fn(),
     createNotification: vi.fn(),
     getApprovedConsultants: vi.fn(),
+    getConsultantNameById: vi.fn(),       // supervisorId -> consultantNames row
+    getUserByLinkedConsultantId: vi.fn(), // consultantNames.id -> user account
   };
 });
 
@@ -31,6 +33,8 @@ import {
   updateAudit,
   createAuditEvent,
   createNotification,
+  getConsultantNameById,
+  getUserByLinkedConsultantId,
 } from "./db";
 
 // ─── Context factories ────────────────────────────────────────────────────────
@@ -247,10 +251,13 @@ describe("audits.reassign — consultant notification", () => {
   });
 
   it("sends an audit_reassigned notification to the newly assigned consultant", async () => {
-    // getUserById is called twice: once for the admin actor, once for the new supervisor
-    vi.mocked(getUserById)
-      .mockResolvedValueOnce(MOCK_ADMIN_DB_USER)   // actor (admin)
-      .mockResolvedValueOnce(MOCK_CONSULTANT_DB_USER); // new supervisor
+    // reassign now uses getConsultantNameById for name resolution and
+    // getUserByLinkedConsultantId to find the user account to notify.
+    vi.mocked(getUserById).mockResolvedValueOnce(MOCK_ADMIN_DB_USER); // actor only
+    vi.mocked(getConsultantNameById).mockResolvedValue({
+      id: 2, title: "Dr", fullName: "Test Consultant", grade: "Consultant", active: true, createdAt: new Date(),
+    });
+    vi.mocked(getUserByLinkedConsultantId).mockResolvedValue(MOCK_CONSULTANT_DB_USER);
     vi.mocked(getAuditById).mockResolvedValue(MOCK_PENDING_AUDIT);
     vi.mocked(updateAudit).mockResolvedValue(MOCK_PENDING_AUDIT);
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);
@@ -263,7 +270,7 @@ describe("audits.reassign — consultant notification", () => {
 
     expect(createNotification).toHaveBeenCalledWith(
       expect.objectContaining({
-        recipientId: 2, // new consultant id
+        recipientId: MOCK_CONSULTANT_DB_USER.id, // users.id (2), not consultantNames.id
         type: "audit_reassigned",
       })
     );
@@ -276,6 +283,8 @@ describe("audits.reassign — consultant notification", () => {
 
   it("does NOT send a notification when the supervisor is removed (null supervisorId)", async () => {
     vi.mocked(getUserById).mockResolvedValue(MOCK_ADMIN_DB_USER);
+    vi.mocked(getConsultantNameById).mockResolvedValue(undefined); // not called for null, but safe to mock
+    vi.mocked(getUserByLinkedConsultantId).mockResolvedValue(undefined);
     vi.mocked(getAuditById).mockResolvedValue(MOCK_PENDING_AUDIT);
     vi.mocked(updateAudit).mockResolvedValue({ ...MOCK_PENDING_AUDIT, supervisorId: null, supervisorName: null });
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);

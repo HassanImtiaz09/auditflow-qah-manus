@@ -110,6 +110,14 @@ export async function getConsultantNames() {
     .orderBy(consultantNames.fullName);
 }
 
+/** Returns a single consultantNames row by its primary key */
+export async function getConsultantNameById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const r = await db.select().from(consultantNames).where(eq(consultantNames.id, id)).limit(1);
+  return r[0];
+}
+
 /** Adds a new name to the consultantNames roster */
 export async function addConsultantName(data: Omit<InsertConsultantName, 'createdAt'>) {
   const db = await getDb();
