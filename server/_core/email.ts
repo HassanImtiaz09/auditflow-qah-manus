@@ -455,3 +455,43 @@ export async function sendAuditSubmissionEmails(opts: {
     })
   );
 }
+
+// ─── Password Reset ───────────────────────────────────────────────────────────
+
+/**
+ * Send a password-reset link to the user.
+ * The link points to /reset-password?token=<rawToken> on the given origin.
+ * The caller is responsible for storing the HASHED token in the DB;
+ * this function receives the raw (unhashed) token to embed in the URL.
+ */
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  recipientName: string;
+  token: string;
+  origin: string;
+}): Promise<boolean> {
+  const { to, recipientName, token, origin } = opts;
+  const resetUrl = `${origin}/reset-password?token=${token}`;
+
+  const bodyHtml = `
+    <p>Dear ${recipientName},</p>
+    <p>We received a request to reset the password for your <strong>AuditFlow QAH</strong> account.</p>
+    <p>Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.</p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${resetUrl}"
+         style="display:inline-block;background:#003366;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;">
+        Reset Password
+      </a>
+    </div>
+    <p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:</p>
+    <p style="font-size:12px;word-break:break-all;color:#003366;">${resetUrl}</p>
+    <p style="font-size:12px;color:#6b7280;">If you did not request a password reset, you can safely ignore this email. Your password will not be changed.</p>`;
+
+  const subject = "[AuditFlow] Password reset request — AuditFlow QAH";
+  return sendEmail({
+    to,
+    subject,
+    html: baseTemplate(subject, bodyHtml),
+    text: `Dear ${recipientName},\n\nTo reset your AuditFlow QAH password, visit:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request a password reset, ignore this email.`,
+  });
+}

@@ -1,11 +1,29 @@
 /**
  * Tests for auth.requestPasswordReset and auth.resetPassword procedures.
  *
- * These tests mock the database helpers so no real DB connection is needed.
+ * Security requirements verified:
+ *  1. requestPasswordReset NEVER returns a token in the response.
+ *  2. Tokens are stored hashed (SHA-256); resetPassword hashes the raw token before lookup.
+ *  3. Both email-exists and email-not-found branches return { success: true } only.
  */
+import { createHash } from "crypto";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+
+// ─── Mock email helper so no real emails are sent ─────────────────────────────
+
+vi.mock("./_core/email", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./_core/email")>();
+  return {
+    ...actual,
+    sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+    sendVerificationEmail: vi.fn().mockResolvedValue(true),
+    sendRegistrationConfirmationEmail: vi.fn().mockResolvedValue(true),
+    sendAuditSubmissionEmails: vi.fn().mockResolvedValue(undefined),
+    sendAuditStatusEmails: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 // ─── Mock database helpers ────────────────────────────────────────────────────
 
@@ -45,6 +63,28 @@ function createPublicContext(): TrpcContext {
   };
 }
 
+const MOCK_USER = {
+  id: 42,
+  openId: "local-abc",
+  email: "doctor@nhs.net",
+  name: "Dr Test",
+  fullName: "Dr Test",
+  title: "Dr",
+  grade: "Consultant",
+  auditRole: "consultant",
+  passwordHash: "hashed",
+  approved: true,
+  roleApproved: true,
+  loginMethod: "password",
+  role: "user" as const,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  lastSignedIn: new Date(),
+  emailVerified: true,
+  emailVerifyToken: null,
+  linkedConsultantId: null,
+};
+
 // ─── requestPasswordReset ─────────────────────────────────────────────────────
 
 describe("auth.requestPasswordReset", () => {
@@ -52,25 +92,8 @@ describe("auth.requestPasswordReset", () => {
     vi.clearAllMocks();
   });
 
-  it("returns success:true with a token when the email exists", async () => {
-    vi.mocked(getUserByEmail).mockResolvedValue({
-      id: 42,
-      openId: "local-abc",
-      email: "doctor@nhs.net",
-      name: "Dr Test",
-      fullName: "Dr Test",
-      title: "Dr",
-      grade: "Consultant",
-      auditRole: "consultant",
-      passwordHash: "hashed",
-      approved: true,
-      roleApproved: true,
-      loginMethod: "password",
-      role: "user",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastSignedIn: new Date(),
-    });
+  it("returns { success: true } with NO token when the email exists", async () => {
+    vi.mocked(getUserByEmail).mockResolvedValue(MOCK_USER);
     vi.mocked(createPasswordResetToken).mockResolvedValue(undefined);
 
     const ctx = createPublicContext();
@@ -78,17 +101,19 @@ describe("auth.requestPasswordReset", () => {
 
     const result = await caller.auth.requestPasswordReset({ email: "doctor@nhs.net" });
 
+    // Security requirement: token must NEVER appear in the response
     expect(result.success).toBe(true);
-    expect(typeof result.token).toBe("string");
-    expect(result.token!.length).toBeGreaterThan(32);
+    expect((result as Record<string, unknown>).token).toBeUndefined();
+
+    // DB helper must have been called with a HASHED token (64-char hex SHA-256)
     expect(createPasswordResetToken).toHaveBeenCalledWith(
       42,
-      expect.any(String),
+      expect.stringMatching(/^[a-f0-9]{64}$/), // SHA-256 hex = 64 chars
       expect.any(Date)
     );
   });
 
-  it("returns success:true (no token) when the email does not exist — prevents enumeration", async () => {
+  it("returns { success: true } (no token) when the email does not exist — prevents enumeration", async () => {
     vi.mocked(getUserByEmail).mockResolvedValue(undefined);
 
     const ctx = createPublicContext();
@@ -97,26 +122,30 @@ describe("auth.requestPasswordReset", () => {
     const result = await caller.auth.requestPasswordReset({ email: "nobody@nhs.net" });
 
     expect(result.success).toBe(true);
-    expect(result.token).toBeUndefined();
+    expect((result as Record<string, unknown>).token).toBeUndefined();
     expect(createPasswordResetToken).not.toHaveBeenCalled();
   });
 });
 
-// ─── resetPassword ────────────────────────────────────────────────────────────
+// ─── resetPassword — hash round-trip ─────────────────────────────────────────
 
 describe("auth.resetPassword", () => {
-  const VALID_TOKEN = "a".repeat(64);
+  // A raw token as it would appear in the URL
+  const RAW_TOKEN = "a".repeat(64);
+  // The SHA-256 hash of the raw token — this is what the DB stores
+  const HASHED_TOKEN = createHash("sha256").update(RAW_TOKEN).digest("hex");
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("updates the password and marks the token used when the token is valid", async () => {
+  it("succeeds when the DB contains the hashed token and the caller supplies the raw token (hash round-trip)", async () => {
+    // DB returns the HASHED token (as stored by requestPasswordReset)
     vi.mocked(getPasswordResetToken).mockResolvedValue({
       id: 1,
       userId: 42,
-      token: VALID_TOKEN,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min from now
+      token: HASHED_TOKEN,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       used: false,
       createdAt: new Date(),
     });
@@ -126,12 +155,15 @@ describe("auth.resetPassword", () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
 
+    // Caller supplies the RAW token (as it appears in the email link)
     const result = await caller.auth.resetPassword({
-      token: VALID_TOKEN,
+      token: RAW_TOKEN,
       newPassword: "NewSecure@123",
     });
 
     expect(result.success).toBe(true);
+    // getPasswordResetToken must have been called with the HASHED token
+    expect(getPasswordResetToken).toHaveBeenCalledWith(HASHED_TOKEN);
     expect(updateUserPassword).toHaveBeenCalledWith(42, expect.any(String));
     expect(markPasswordResetTokenUsed).toHaveBeenCalledWith(1);
   });
@@ -151,7 +183,7 @@ describe("auth.resetPassword", () => {
     vi.mocked(getPasswordResetToken).mockResolvedValue({
       id: 1,
       userId: 42,
-      token: VALID_TOKEN,
+      token: HASHED_TOKEN,
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       used: true,
       createdAt: new Date(),
@@ -161,7 +193,7 @@ describe("auth.resetPassword", () => {
     const caller = appRouter.createCaller(ctx);
 
     await expect(
-      caller.auth.resetPassword({ token: VALID_TOKEN, newPassword: "NewSecure@123" })
+      caller.auth.resetPassword({ token: RAW_TOKEN, newPassword: "NewSecure@123" })
     ).rejects.toThrow("This reset link has already been used.");
   });
 
@@ -169,7 +201,7 @@ describe("auth.resetPassword", () => {
     vi.mocked(getPasswordResetToken).mockResolvedValue({
       id: 1,
       userId: 42,
-      token: VALID_TOKEN,
+      token: HASHED_TOKEN,
       expiresAt: new Date(Date.now() - 60 * 1000), // 1 minute ago
       used: false,
       createdAt: new Date(),
@@ -179,7 +211,7 @@ describe("auth.resetPassword", () => {
     const caller = appRouter.createCaller(ctx);
 
     await expect(
-      caller.auth.resetPassword({ token: VALID_TOKEN, newPassword: "NewSecure@123" })
+      caller.auth.resetPassword({ token: RAW_TOKEN, newPassword: "NewSecure@123" })
     ).rejects.toThrow("This reset link has expired.");
   });
 });

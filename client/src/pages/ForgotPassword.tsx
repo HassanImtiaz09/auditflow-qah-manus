@@ -1,4 +1,4 @@
-// ForgotPassword - Request a password reset link
+// ForgotPassword - Request a password reset link via email
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,38 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Copy, CheckCircle2, KeyRound } from "lucide-react";
+import { ArrowLeft, CheckCircle2, KeyRound, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [resetLink, setResetLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const requestReset = trpc.auth.requestPasswordReset.useMutation({
-    onSuccess: (data) => {
-      if (data.token) {
-        const link = `${window.location.origin}/reset-password?token=${data.token}`;
-        setResetLink(link);
-      } else {
-        // User not found — show generic success to prevent enumeration
-        setResetLink("NOT_FOUND");
-      }
+    onSuccess: () => {
+      setSubmitted(true);
     },
     onError: (err) => toast.error(err.message),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    requestReset.mutate({ email });
-  };
-
-  const copyLink = async () => {
-    if (!resetLink || resetLink === "NOT_FOUND") return;
-    await navigator.clipboard.writeText(resetLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast.success("Reset link copied to clipboard.");
+    requestReset.mutate({ email, origin: window.location.origin });
   };
 
   return (
@@ -51,7 +36,7 @@ export default function ForgotPassword() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Forgot Password</h1>
           <p className="text-sm text-muted-foreground">
-            Enter your registered NHS email address. A reset link will be generated for you.
+            Enter your registered email address and we will send you a reset link.
           </p>
         </div>
 
@@ -59,12 +44,12 @@ export default function ForgotPassword() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Account Recovery</CardTitle>
             <CardDescription>
-              Because this is an NHS intranet tool, reset links are generated on-screen and can be
-              shared securely by an administrator.
+              A password reset link will be sent to your registered email address. The link expires
+              in <strong>1 hour</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!resetLink ? (
+            {!submitted ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email address</Label>
@@ -83,62 +68,25 @@ export default function ForgotPassword() {
                   className="w-full"
                   disabled={requestReset.isPending}
                 >
-                  {requestReset.isPending ? "Generating link…" : "Generate Reset Link"}
+                  {requestReset.isPending ? "Sending…" : "Send Reset Link"}
                 </Button>
               </form>
-            ) : resetLink === "NOT_FOUND" ? (
-              <div className="space-y-4">
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertDescription>
-                    If an account with that email exists, a reset link has been generated. Please
-                    contact your system administrator.
-                  </AlertDescription>
-                </Alert>
-                <Button variant="outline" className="w-full" onClick={() => setResetLink(null)}>
-                  Try another email
-                </Button>
-              </div>
             ) : (
               <div className="space-y-4">
                 <Alert className="border-emerald-200 bg-emerald-50 text-emerald-800">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <Mail className="h-4 w-4 text-emerald-600" />
                   <AlertDescription className="text-emerald-800">
-                    Reset link generated. Copy it below and share it securely with the user. The
-                    link expires in <strong>1 hour</strong>.
+                    If an account with that email address exists, a password reset link has been
+                    sent. Please check your inbox (and spam folder) — the link expires in{" "}
+                    <strong>1 hour</strong>.
                   </AlertDescription>
                 </Alert>
-
-                <div className="space-y-1.5">
-                  <Label>Reset Link</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      readOnly
-                      value={resetLink}
-                      className="font-mono text-xs bg-muted"
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={copyLink}
-                      className="flex-shrink-0"
-                      title="Copy to clipboard"
-                    >
-                      {copied ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Click the link field to select all, then copy.
-                  </p>
-                </div>
-
-                <Button variant="outline" className="w-full" onClick={() => { setResetLink(null); setEmail(""); }}>
-                  Generate another link
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => { setSubmitted(false); setEmail(""); }}
+                >
+                  Try another email
                 </Button>
               </div>
             )}

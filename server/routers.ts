@@ -78,7 +78,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { getStandardPresets } from "../shared/auditStandards";
 import { notifyOwner } from "./_core/notification";
-import { sendAuditStatusEmails, sendVerificationEmail, sendRegistrationConfirmationEmail, sendAuditSubmissionEmails } from "./_core/email";
+import { sendAuditStatusEmails, sendVerificationEmail, sendRegistrationConfirmationEmail, sendAuditSubmissionEmails, sendPasswordResetEmail } from "./_core/email";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -223,22 +223,35 @@ const authRouter = router({
     }),
 
   requestPasswordReset: publicProcedure
-    .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
-      // Always return success to prevent email enumeration
+    .input(z.object({ email: z.string().email(), origin: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      // Always return { success: true } — never expose whether the email exists
       const user = await getUserByEmail(input.email);
       if (!user) return { success: true };
 
-      // Generate a cryptographically secure random token
+      // Generate a cryptographically secure random token (raw)
       const crypto = await import("crypto");
-      const token = crypto.randomBytes(32).toString("hex");
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      // Hash the token before storing — the raw token is only ever in the URL
+      const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-      await createPasswordResetToken(user.id, token, expiresAt);
+      await createPasswordResetToken(user.id, hashedToken, expiresAt);
 
-      // Return the reset token so the admin can share the link with the user
-      // (No external email service is configured; the link is shown on-screen)
-      return { success: true, token };
+      // Send the reset email with the raw token embedded in the link
+      const origin =
+        input.origin ||
+        (ctx.req.headers["origin"] as string | undefined) ||
+        "https://auditqah-436kjx9h.manus.space";
+      await sendPasswordResetEmail({
+        to: user.email!,
+        recipientName: user.fullName ?? user.name ?? "User",
+        token: rawToken,
+        origin,
+      });
+
+      // Never return the token — response is always { success: true }
+      return { success: true };
     }),
 
   resetPassword: publicProcedure
@@ -249,7 +262,10 @@ const authRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const record = await getPasswordResetToken(input.token);
+      // Hash the incoming raw token before lookup — tokens are stored hashed
+      const crypto = await import("crypto");
+      const hashedToken = crypto.createHash("sha256").update(input.token).digest("hex");
+      const record = await getPasswordResetToken(hashedToken);
       if (!record) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired reset link." });
       }

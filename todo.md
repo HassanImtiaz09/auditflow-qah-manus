@@ -392,3 +392,16 @@
 - [x] Backend: wire sendAuditSubmissionEmails into submit procedure (non-draft path only)
 - [x] Backend: verified sendAuditStatusEmails correctly fans out to collaborators on decide (logic confirmed in code review — submitter + collaborators + actor)
 - [x] Tests: all 135 tests passing (no regressions)
+
+## Tranche A — Critical Security Fixes
+
+- [x] Backend: remove `token` from requestPasswordReset return value — response is `{ success: true }` in both branches
+- [x] Backend: hash token with SHA-256 before storing in passwordResetTokens table
+- [x] Backend: hash incoming token with SHA-256 before lookup in resetPassword procedure
+- [x] Backend: add sendPasswordResetEmail({ to, recipientName, token, origin }) to server/_core/email.ts
+- [x] Backend: call sendPasswordResetEmail from inside requestPasswordReset when user is found
+- [x] Frontend: ForgotPassword.tsx rewritten — no longer shows on-screen token; shows "check your email" message
+- [x] Tests: updated "email exists" test — asserts result.token is undefined
+- [x] Tests: added hash round-trip test — stores hashed token, calls resetPassword with raw token, verifies success
+- [x] Verify: grep for `return { success: true, token }` — zero matches confirmed
+- [x] All 135 tests passing
