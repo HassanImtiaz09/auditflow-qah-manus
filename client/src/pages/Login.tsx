@@ -26,6 +26,9 @@ export default function Login() {
     onError: (err) => {
       if (err.message === "EMAIL_NOT_VERIFIED") {
         setUnverifiedEmail(email);
+      } else if (err.data?.httpStatus === 429) {
+        // Rate-limit response from the server middleware (not a tRPC error)
+        toast.error("Too many sign-in attempts. Please wait a moment and try again.");
       } else {
         toast.error(err.message);
       }
@@ -37,8 +40,12 @@ export default function Login() {
       setResendSent(true);
       toast.success("Verification email resent. Please check your inbox.");
     },
-    onError: () => {
-      toast.error("Failed to resend verification email. Please try again.");
+    onError: (err) => {
+      if (err.data?.httpStatus === 429) {
+        toast.error("Too many requests. Please wait before requesting another verification email.");
+      } else {
+        toast.error("Failed to resend verification email. Please try again.");
+      }
     },
   });
 

@@ -45,7 +45,11 @@ export default function Register() {
       }
     },
     onError: (err) => {
-      toast.error(err.message);
+      if (err.data?.httpStatus === 429) {
+        toast.error("Too many registration attempts. Please wait before trying again.");
+      } else {
+        toast.error(err.message);
+      }
     },
   });
 

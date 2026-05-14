@@ -481,3 +481,13 @@
 - [x] server/auth.logout.test.ts: update sameSite assertion from "none" to "lax"
 - [x] server/csrf.test.ts: 10 tests covering all HTTP methods, correct/incorrect/missing header values
 - [x] Run pnpm test and pnpm check — all pass (184 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 8: Rate-limit Public Auth Endpoints
+
+- [x] Install express-rate-limit dependency
+- [x] server/_core/index.ts: add per-IP rate limiters for auth.login (10/min), auth.register (5/hr), auth.requestPasswordReset (5/hr), auth.resendVerification (5/hr) — mounted before tRPC handler
+- [x] Rate limiters respond 429 with JSON { error: { code: "TOO_MANY_REQUESTS", message: "..." } }
+- [x] client/src/pages/Login.tsx: display 429 error message as toast
+- [x] client/src/pages/Register.tsx: display 429 error message as toast
+- [x] server/rate-limit.test.ts: hammer login 11 times from same IP, assert 11th returns 429
+- [x] Run pnpm test and pnpm check — all pass (191 tests, 0 TypeScript errors)

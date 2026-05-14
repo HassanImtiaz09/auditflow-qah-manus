@@ -3,6 +3,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import net from "net";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -49,6 +50,74 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
   return next();
 }
 
+// ─── Rate limiting ────────────────────────────────────────────────────────────
+
+/**
+ * Standard 429 response body that the client can display to the user.
+ * Matches the shape expected by the Login.tsx / Register.tsx error handlers.
+ */
+const TOO_MANY_REQUESTS_BODY = {
+  error: {
+    code: "TOO_MANY_REQUESTS",
+    message: "Too many attempts. Please try again later.",
+  },
+};
+
+/**
+ * Build a rate limiter for a specific tRPC procedure path suffix.
+ *
+ * tRPC encodes the procedure name in the URL path:
+ *   POST /api/trpc/auth.login
+ *   POST /api/trpc/auth.register
+ *   POST /api/trpc/auth.requestPasswordReset
+ *   POST /api/trpc/auth.resendVerification
+ *
+ * The limiter is keyed by IP address. An in-memory store is used here;
+ * TODO: switch to a Redis store (e.g. rate-limit-redis) when the app is
+ * horizontally scaled across multiple instances so the counter is shared.
+ *
+ * @param procedureSuffix  The procedure name as it appears at the end of the URL
+ * @param max              Maximum number of requests allowed in the window
+ * @param windowMs         Window duration in milliseconds
+ */
+function makeProcedureRateLimiter(procedureSuffix: string, max: number, windowMs: number) {
+  const limiter = rateLimit({
+    windowMs,
+    max,
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
+    // Only apply this limiter to the specific procedure path
+    skip: (req) => {
+      // tRPC path format: /api/trpc/auth.login  or  /api/trpc/auth.login,auth.other (batch)
+      // We match if the URL path contains the procedure name as a segment
+      const url = req.url ?? "";
+      return !url.includes(procedureSuffix);
+    },
+    handler: (_req, res) => {
+      res.status(429).json(TOO_MANY_REQUESTS_BODY);
+    },
+    standardHeaders: true,   // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false,     // Disable the `X-RateLimit-*` headers
+  });
+  return limiter;
+}
+
+/**
+ * Auth-endpoint rate limiters.
+ *
+ * Limits are intentionally conservative to deter credential stuffing and
+ * reset-spam while still allowing legitimate use:
+ *   - login:                10 attempts / 1 minute  (fast feedback for typos)
+ *   - register:              5 attempts / 1 hour    (account creation is rare)
+ *   - requestPasswordReset:  5 attempts / 1 hour    (reset requests are rare)
+ *   - resendVerification:    5 attempts / 1 hour    (resend is rare)
+ */
+export const authRateLimiters = {
+  login: makeProcedureRateLimiter("auth.login", 10, 60 * 1000),
+  register: makeProcedureRateLimiter("auth.register", 5, 60 * 60 * 1000),
+  requestPasswordReset: makeProcedureRateLimiter("auth.requestPasswordReset", 5, 60 * 60 * 1000),
+  resendVerification: makeProcedureRateLimiter("auth.resendVerification", 5, 60 * 60 * 1000),
+};
+
 // ─── Port utilities ───────────────────────────────────────────────────────────
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -81,8 +150,17 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  // tRPC API — CSRF check applied before the tRPC handler
+  // Auth rate limiters — applied before the tRPC handler so requests are
+  // rejected cheaply without spinning up tRPC context or DB queries.
+  app.use("/api/trpc", authRateLimiters.login);
+  app.use("/api/trpc", authRateLimiters.register);
+  app.use("/api/trpc", authRateLimiters.requestPasswordReset);
+  app.use("/api/trpc", authRateLimiters.resendVerification);
+
+  // CSRF check — defence-in-depth on top of SameSite=Lax cookies
   app.use("/api/trpc", csrfProtection);
+
+  // tRPC API
   app.use(
     "/api/trpc",
     createExpressMiddleware({
