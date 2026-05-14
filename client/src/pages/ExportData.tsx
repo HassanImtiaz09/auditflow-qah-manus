@@ -1,13 +1,54 @@
-// ExportData — tRPC backend
+// ExportData — admin-only export page
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, ShieldAlert } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function ExportData() {
-  const { data: audits = [], isLoading } = trpc.audits.list.useQuery();
+  const { data: currentUser, isLoading: userLoading } = trpc.auth.currentUser.useQuery();
+  const isAdmin = currentUser?.auditRole === "admin";
+
+  // Only fetch audit data when the user is confirmed to be an admin
+  const { data: audits = [], isLoading: auditsLoading } = trpc.audits.list.useQuery(
+    undefined,
+    { enabled: isAdmin }
+  );
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const isLoading = userLoading || auditsLoading;
+
+  // Show loading state while resolving user role
+  if (userLoading) {
+    return (
+      <div className="p-6 max-w-2xl">
+        <div className="h-8 w-48 bg-muted animate-pulse rounded mb-4" />
+        <div className="h-40 bg-muted animate-pulse rounded-xl" />
+      </div>
+    );
+  }
+
+  // Non-admin: show a clear "Not authorised" notice
+  if (!isAdmin) {
+    return (
+      <div className="p-6 max-w-2xl">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold">Export Data</h1>
+        </div>
+        <div className="bg-card rounded-xl border border-border shadow-sm p-8 flex flex-col items-center gap-4 text-center">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6 text-destructive" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Not Authorised</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Data export is restricted to administrators. Please contact your audit lead if you need a copy of the registry.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const years = Array.from(new Set(
     audits

@@ -355,7 +355,10 @@ const authRouter = router({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const auditRouter = router({
-  list: protectedProcedure.query(async () => {
+  // ADMIN-ONLY: full audit registry. Non-admins use audits.myAuditsRegistry.
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const all = await getAllAudits();
     return all.map((a) => ({
       ...a,
@@ -432,6 +435,48 @@ const auditRouter = router({
         ...a,
         collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
       }));
+  }),
+
+  /**
+   * Returns audits the current user is involved in:
+   *   - submitter (submittedById === user.id)
+   *   - collaborator (listed in the JSON collaborators array by email)
+   *   - assigned supervisor (user.linkedConsultantId === audit.supervisorId)
+   * Admins receive all audits (same as audits.list).
+   * Used by the Audit Registry page for non-admin users.
+   */
+  myAuditsRegistry: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    const all = await getAllAudits();
+    const parsed = all.map((a) => ({
+      ...a,
+      collaborators: a.collaborators ? JSON.parse(a.collaborators) : [],
+    }));
+
+    // Admins see everything
+    if (user.auditRole === "admin") return parsed;
+
+    return parsed.filter((a) => {
+      // Submitter
+      if (a.submittedById === user.id) return true;
+      // Assigned supervisor
+      if (
+        user.linkedConsultantId !== null &&
+        user.linkedConsultantId !== undefined &&
+        a.supervisorId !== null &&
+        user.linkedConsultantId === a.supervisorId
+      ) return true;
+      // Collaborator — collaborators is an array of {name, email} or legacy strings
+      const collabs: Array<{ name?: string; email?: string } | string> = a.collaborators;
+      if (collabs.some((c) =>
+        typeof c === "string"
+          ? c === user.email
+          : c.email === user.email
+      )) return true;
+      return false;
+    });
   }),
 
   /** Delete a draft audit (owner only) */
@@ -897,9 +942,23 @@ const auditRouter = router({
       return { success: true };
     }),
 
+  // ACL: admin, submitter, or assigned supervisor (linkedConsultantId === audit.supervisorId)
   history: protectedProcedure
     .input(z.object({ auditId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const actor = await getUserById(ctx.user.id);
+      if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
+      if (actor.auditRole !== "admin") {
+        const audit = await getAuditById(input.auditId);
+        if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+        const isSubmitter = audit.submittedById === actor.id;
+        const isSupervisor =
+          actor.linkedConsultantId !== null &&
+          actor.linkedConsultantId !== undefined &&
+          audit.supervisorId !== null &&
+          actor.linkedConsultantId === audit.supervisorId;
+        if (!isSubmitter && !isSupervisor) throw new TRPCError({ code: "FORBIDDEN" });
+      }
       return getAuditEvents(input.auditId);
     }),
 
@@ -959,8 +1018,10 @@ const auditRouter = router({
     };
   }),
 
-  /** Returns all audits each with their full audit trail — used for PDF export */
-  listWithHistory: protectedProcedure.query(async () => {
+  /** ADMIN-ONLY: Returns all audits each with their full audit trail — used for PDF export */
+  listWithHistory: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const all = await getAllAudits();
     const withHistory = await Promise.all(
       all.map(async (a) => ({

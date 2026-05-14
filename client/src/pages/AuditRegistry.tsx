@@ -165,7 +165,18 @@ function AuditHistoryPanel({ auditId }: { auditId: number }) {
 export default function AuditRegistry() {
   const utils = trpc.useUtils();
   const { data: currentUser } = trpc.auth.currentUser.useQuery();
-  const { data: audits = [], isLoading } = trpc.audits.list.useQuery();
+  const isAdmin = currentUser?.auditRole === "admin";
+  // Admins use the full registry; non-admins use the scoped view (own audits only)
+  const { data: adminAudits = [], isLoading: adminLoading } = trpc.audits.list.useQuery(
+    undefined,
+    { enabled: isAdmin }
+  );
+  const { data: myAudits = [], isLoading: myLoading } = trpc.audits.myAuditsRegistry.useQuery(
+    undefined,
+    { enabled: !isAdmin }
+  );
+  const audits = isAdmin ? adminAudits : myAudits;
+  const isLoading = isAdmin ? adminLoading : myLoading;
   const { data: consultants = [] } = trpc.audits.consultants.useQuery();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -178,7 +189,8 @@ export default function AuditRegistry() {
   const archiveMutation = trpc.audits.archive.useMutation({
     onSuccess: () => {
       utils.audits.list.invalidate();
-      utils.audits.myQueue.invalidate();       // keep sidebar badge in sync
+      utils.audits.myAuditsRegistry.invalidate(); // keep non-admin view in sync
+      utils.audits.myQueue.invalidate();           // keep sidebar badge in sync
       utils.audits.myConsultantQueue.invalidate();
     },
     onError: (err) => toast.error(err.message),
@@ -187,6 +199,7 @@ export default function AuditRegistry() {
   const reassignMutation = trpc.audits.reassign.useMutation({
     onSuccess: () => {
       utils.audits.list.invalidate();
+      utils.audits.myAuditsRegistry.invalidate();
       setReassignState(null);
       toast.success("Supervisor updated successfully.");
     },
@@ -269,8 +282,6 @@ export default function AuditRegistry() {
   const toggleHistory = (auditId: number) => {
     setExpandedId((prev) => (prev === auditId ? null : auditId));
   };
-
-  const isAdmin = currentUser?.auditRole === "admin";
 
   const [pdfLoading, setPdfLoading] = useState(false);
 

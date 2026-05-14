@@ -161,6 +161,8 @@ const MOCK_PENDING_AUDIT = {
 describe("audits.history", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // ACL check in audits.history calls getUserById; return admin so the guard passes
+    vi.mocked(getUserById).mockResolvedValue(MOCK_ADMIN_DB_USER);
   });
 
   it("returns events for a given auditId in chronological order", async () => {

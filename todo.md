@@ -443,3 +443,16 @@
 - [x] Wrote server/storage-proxy.test.ts with 4 tests: 401 no cookie, 401 invalid cookie, 403 wrong clinician, 307 assigned consultant
 - [x] All 146 tests passing (4 new storage proxy tests)
 - [x] Verified: curl /manus-storage/any-key returns HTTP/2 401 without cookie (confirmed on live dev server)
+
+## Tranche A — Prompt 5: Lock Down Full-Registry Endpoints
+
+- [x] Backend: audits.list — add admin-only guard (auditRole !== "admin" → FORBIDDEN)
+- [x] Backend: audits.listWithHistory — add admin-only guard
+- [x] Backend: audits.history — add ACL: allow admin, submitter (actor.id === audit.submittedById), or assigned supervisor (actor.linkedConsultantId === audit.supervisorId); otherwise FORBIDDEN
+- [x] Backend: add audits.myAuditsRegistry — returns audits where user is submitter, collaborator (JSON array), or assigned supervisor; admins fall through to all audits
+- [x] Frontend: AuditRegistry.tsx — use trpc.audits.myAuditsRegistry for non-admins, trpc.audits.list for admins; invalidate correct query after archive/reassign
+- [x] Frontend: ExportData.tsx — gate behind admin; show "Not authorised" notice for non-admins
+- [x] Tests: audits.history forbidden for random clinician, allowed for submitter/assigned consultant/admin
+- [x] Tests: audits.myAuditsRegistry returns only involved audits
+- [x] Tests: audits.list and audits.listWithHistory throw FORBIDDEN for clinician
+- [x] Run pnpm test and pnpm check — all pass (159 tests, 0 TypeScript errors)
