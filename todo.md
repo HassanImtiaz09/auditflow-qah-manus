@@ -432,3 +432,14 @@
 - [x] Wrote server/supervisor-scoping.test.ts with 7 pinned invariant tests across 4 describe blocks
 - [x] All 142 tests passing
 - [x] Verified: git grep -n "getUserById.*supervisorId" server/ returns zero matches (only in comment)
+
+## Tranche A — Prompt 4: Auth Storage Proxy
+
+- [x] Installed supertest 7.2.2 and @types/supertest 7.2.0 as dev dependencies
+- [x] Rewrote server/_core/storageProxy.ts: parses nhs_audit_session cookie, verifies JWT with jose, resolves user via getUserByOpenId — returns 401 if missing/invalid
+- [x] Per-resource authz: audit-pdf/{auditId}/... — allows submitter, assigned supervisor (linkedConsultantId match), or admin; anything else — admin only
+- [x] Returns 403 Forbidden if authz fails; only proceeds to Forge presign after both checks pass
+- [x] Added key-prefix convention comment block in storageProxy.ts
+- [x] Wrote server/storage-proxy.test.ts with 4 tests: 401 no cookie, 401 invalid cookie, 403 wrong clinician, 307 assigned consultant
+- [x] All 146 tests passing (4 new storage proxy tests)
+- [x] Verified: curl /manus-storage/any-key returns HTTP/2 401 without cookie (confirmed on live dev server)
