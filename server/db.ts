@@ -58,6 +58,25 @@ export async function getUserByEmail(email: string) {
   return r[0];
 }
 
+export async function getUserByEmailVerifyToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const r = await db.select().from(users).where(eq(users.emailVerifyToken, token)).limit(1);
+  return r[0];
+}
+
+export async function setEmailVerifyToken(userId: number, token: string, expiresAt: Date) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ emailVerifyToken: token, emailVerifyTokenExpiresAt: expiresAt }).where(eq(users.id, userId));
+}
+
+export async function markEmailVerified(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ emailVerified: true, emailVerifyToken: null, emailVerifyTokenExpiresAt: null }).where(eq(users.id, userId));
+}
+
 export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;

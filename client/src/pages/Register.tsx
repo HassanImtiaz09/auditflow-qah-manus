@@ -30,7 +30,8 @@ export default function Register() {
     confirmPassword: "",
   });
   const [showPw, setShowPw] = useState(false);
-  const [registered, setRegistered] = useState<"clinician" | "consultant_pending" | null>(null);
+  const [registered, setRegistered] = useState<"verify_email" | "consultant_pending" | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const utils = trpc.useUtils();
   const registerMutation = trpc.auth.register.useMutation({
@@ -38,8 +39,7 @@ export default function Register() {
       if (data.pending) {
         setRegistered("consultant_pending");
       } else {
-        utils.auth.me.invalidate();
-        utils.auth.currentUser.invalidate();
+        setRegistered("verify_email");
       }
     },
     onError: (err) => {
@@ -59,12 +59,14 @@ export default function Register() {
       toast.error("Password must be at least 8 characters.");
       return;
     }
+    setRegisteredEmail(form.email);
     registerMutation.mutate({
       fullName: form.fullName,
       email: form.email,
       title: form.title,
       grade: form.grade,
       password: form.password,
+      origin: window.location.origin,
     });
   };
 
@@ -105,18 +107,34 @@ export default function Register() {
     );
   }
 
-  if (registered === "clinician") {
+  if (registered === "verify_email") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-sm border border-border p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-blue-600" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Account Created!</h2>
-            <p className="text-sm text-muted-foreground">
-              Welcome to AuditFlow ENT QAH. Redirecting you to the dashboard…
+            <h2 className="text-xl font-semibold text-foreground mb-2">Check Your Email</h2>
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+              We've sent a verification link to <strong>{registeredEmail}</strong>.
+              Please click the link in the email to activate your account before logging in.
             </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-6 text-left">
+              <p className="text-xs font-semibold text-blue-800 mb-1">Didn't receive the email?</p>
+              <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                <li>Check your spam or junk folder</li>
+                <li>The link expires in 24 hours</li>
+                <li>Make sure you used the correct email address</li>
+              </ul>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleLoginInstead}
+            >
+              Back to Login
+            </Button>
           </div>
         </div>
       </div>

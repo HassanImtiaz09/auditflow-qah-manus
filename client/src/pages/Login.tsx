@@ -1,7 +1,7 @@
 // AuditFlow QAH - Login Page
 import { useState } from "react";
 import { Link } from "wouter";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,8 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendSent, setResendSent] = useState(false);
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation({
@@ -22,7 +24,21 @@ export default function Login() {
       utils.auth.currentUser.invalidate();
     },
     onError: (err) => {
-      toast.error(err.message);
+      if (err.message === "EMAIL_NOT_VERIFIED") {
+        setUnverifiedEmail(email);
+      } else {
+        toast.error(err.message);
+      }
+    },
+  });
+
+  const resendMutation = trpc.auth.resendVerification.useMutation({
+    onSuccess: () => {
+      setResendSent(true);
+      toast.success("Verification email resent. Please check your inbox.");
+    },
+    onError: () => {
+      toast.error("Failed to resend verification email. Please try again.");
     },
   });
 
@@ -94,6 +110,35 @@ export default function Login() {
           <div className="bg-white rounded-2xl shadow-sm border border-border p-8">
             <h2 className="text-base font-semibold text-foreground mb-0.5 lg:hidden">Sign in</h2>
             <p className="text-sm text-muted-foreground mb-6 lg:hidden">Enter your registered NHS email and password.</p>
+
+            {unverifiedEmail && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800 mb-1">Email not verified</p>
+                    <p className="text-xs text-amber-700 mb-3">
+                      Please verify your email address before logging in. Check your inbox at <strong>{unverifiedEmail}</strong>.
+                    </p>
+                    {!resendSent ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="text-amber-700 border-amber-300 hover:bg-amber-100 h-7 text-xs"
+                        disabled={resendMutation.isPending}
+                        onClick={() => resendMutation.mutate({ email: unverifiedEmail, origin: window.location.origin })}
+                      >
+                        {resendMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
+                        Resend verification email
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-amber-700 font-medium">✓ Verification email sent — check your inbox.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">

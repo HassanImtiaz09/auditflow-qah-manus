@@ -92,6 +92,13 @@
       "when": 1778708995408,
       "tag": "0012_real_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1778732207104,
+      "tag": "0013_fast_genesis",
+      "breakpoints": true
     }
   ]
 }

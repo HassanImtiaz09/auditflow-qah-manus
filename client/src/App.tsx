@@ -25,6 +25,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
 import Notifications from "./pages/Notifications";
 import PendingApproval from "./pages/PendingApproval";
 import { trpc } from "./lib/trpc";
@@ -54,7 +55,7 @@ function AppRouter() {
     if (!isLoading && !currentUser) {
       // Only redirect if we're not already on an auth page
       const path = window.location.pathname;
-      if (path !== "/login" && path !== "/register" && path !== "/forgot-password" && path !== "/reset-password") {
+      if (path !== "/login" && path !== "/register" && path !== "/forgot-password" && path !== "/reset-password" && path !== "/verify-email") {
         window.location.href = "/login";
       }
     }
@@ -75,6 +76,7 @@ function AppRouter() {
         <Route path="/register" component={Register} />
         <Route path="/forgot-password" component={ForgotPassword} />
         <Route path="/reset-password" component={ResetPassword} />
+        <Route path="/verify-email" component={VerifyEmail} />
         <Route component={Login} />
       </Switch>
     );

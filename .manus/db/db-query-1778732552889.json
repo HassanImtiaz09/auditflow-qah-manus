@@ -1,0 +1,16 @@
+{
+  "query": "DELETE FROM users WHERE role != 'admin';\nSELECT id, name, email, role FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 24SvJuQr6QY484E.95c64ef18b07 --database 436kjx9HnHs4DfQBN2oU96 --execute DELETE FROM users WHERE role != 'admin';\nSELECT id, name, email, role FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Hassan Imtiaz",
+      "email": "hassanimtiaz09@gmail.com",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n1\tHassan Imtiaz\thassanimtiaz09@gmail.com\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 321
+}

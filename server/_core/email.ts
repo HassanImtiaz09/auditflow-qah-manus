@@ -278,3 +278,41 @@ export async function sendAuditStatusEmails(opts: {
     })
   );
 }
+
+// ─── Email Verification ───────────────────────────────────────────────────────
+
+/**
+ * Send an email verification link to a newly registered user.
+ * The link points to /verify-email?token=<token> on the given origin.
+ */
+export async function sendVerificationEmail(opts: {
+  to: string;
+  recipientName: string;
+  token: string;
+  origin: string;
+}): Promise<boolean> {
+  const { to, recipientName, token, origin } = opts;
+  const verifyUrl = `${origin}/verify-email?token=${token}`;
+
+  const bodyHtml = `
+    <p>Dear ${recipientName},</p>
+    <p>Thank you for registering with <strong>AuditFlow QAH</strong> — the ENT Clinical Audit Registry at Portsmouth Hospitals University NHS Trust.</p>
+    <p>Please verify your email address by clicking the button below. This link will expire in <strong>24 hours</strong>.</p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${verifyUrl}"
+         style="display:inline-block;background:#003366;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;">
+        Verify Email Address
+      </a>
+    </div>
+    <p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:</p>
+    <p style="font-size:12px;word-break:break-all;color:#003366;">${verifyUrl}</p>
+    <p style="font-size:12px;color:#6b7280;">If you did not create an account, you can safely ignore this email.</p>`;
+
+  const subject = "[AuditFlow] Please verify your email address";
+  return sendEmail({
+    to,
+    subject,
+    html: baseTemplate(subject, bodyHtml),
+    text: `Dear ${recipientName},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+  });
+}

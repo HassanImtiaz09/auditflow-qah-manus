@@ -46,6 +46,12 @@ export const users = mysqlTable("users", {
    * Set by admin when approving a consultant registration.
    */
   linkedConsultantId: int("linkedConsultantId"),
+  /** Whether the user has verified their email address */
+  emailVerified: boolean("emailVerified").default(false).notNull(),
+  /** One-time token sent to the user's email for verification (cleared after use) */
+  emailVerifyToken: varchar("emailVerifyToken", { length: 128 }),
+  /** Expiry time for the email verification token */
+  emailVerifyTokenExpiresAt: timestamp("emailVerifyTokenExpiresAt"),
 });
 
 export type User = typeof users.$inferSelect;

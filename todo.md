@@ -351,8 +351,24 @@
 - [x] Backend: archive procedure — calls sendAuditStatusEmails after archive/restore
 
 ### Secrets
-- [ ] Request SMTP credentials from user (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM)
+- [x] Request SMTP credentials from user (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM) — deferred, user does not have credentials yet; emails will be skipped gracefully until configured
 
 ### Tests
 - [x] Vitest: 23 new email helper unit tests in server/email.test.ts
 - [x] All 135 tests passing (up from 112)
+
+## Round 21 — Email Verification on Registration
+
+- [x] Schema: add emailVerified (boolean, default false) and emailVerifyToken (varchar 128, nullable) to users table
+- [x] DB migration: pnpm db:push (migration 0013_fast_genesis.sql applied)
+- [x] Backend: add sendVerificationEmail(user, origin) helper in server/_core/email.ts
+- [x] Backend: update register procedure — set emailVerifyToken, send verification email, return { success, pendingVerification: true }
+- [x] Backend: add verifyEmail publicProcedure — validates token, sets emailVerified=true, clears token
+- [x] Backend: add resendVerification publicProcedure — generates new token, sends new email
+- [x] Backend: update login procedure — block login with EMAIL_NOT_VERIFIED error if emailVerified=false (skip check for admin)
+- [x] Frontend: update Register success screen to show "Check your email" message with email address shown
+- [x] Frontend: add /verify-email?token=xxx page — calls verifyEmail procedure, shows success/error, redirects to login after 3s
+- [x] Frontend: update login error handling — show "Email not verified" amber banner with Resend button
+- [x] Frontend: register /verify-email route in App.tsx (excluded from auth redirect guard)
+- [x] Tests: all 135 tests passing (no regressions)
+- [x] Cleanup: delete all non-admin accounts after implementation

@@ -70,12 +70,15 @@ import {
   getAuditsPerConsultant,
   getApproachingDeadlines,
   getRecentRegistrations,
+  getUserByEmailVerifyToken,
+  setEmailVerifyToken,
+  markEmailVerified,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { getStandardPresets } from "../shared/auditStandards";
 import { notifyOwner } from "./_core/notification";
-import { sendAuditStatusEmails } from "./_core/email";
+import { sendAuditStatusEmails, sendVerificationEmail } from "./_core/email";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -96,9 +99,10 @@ const authRouter = router({
         email: z.string().email(),
         grade: z.string().min(1),
         password: z.string().min(8),
+        origin: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const existing = await getUserByEmail(input.email);
       if (existing) throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists." });
 
@@ -107,6 +111,11 @@ const authRouter = router({
       const auditRole = isConsultant ? "consultant" : "clinician";
       const approved = !isConsultant;
       const roleApproved = !isConsultant;
+
+      // Generate email verification token
+      const crypto = await import("crypto");
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       const openId = `local-${nanoid()}`;
       await upsertUser({
@@ -121,10 +130,23 @@ const authRouter = router({
         approved,
         roleApproved,
         loginMethod: "password",
+        emailVerified: false,
       });
 
       const newUser = await getUserByEmail(input.email);
       if (!newUser) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Registration failed." });
+
+      // Store verification token
+      await setEmailVerifyToken(newUser.id, verifyToken, verifyTokenExpiresAt);
+
+      // Send verification email (best-effort — non-fatal if SMTP not configured)
+      const origin = input.origin ?? (ctx.req.headers.origin as string | undefined) ?? "https://auditqah-436kjx9h.manus.space";
+      await sendVerificationEmail({
+        to: input.email,
+        recipientName: `${input.title ? input.title + " " : ""}${input.fullName}`,
+        token: verifyToken,
+        origin,
+      });
 
       if (isConsultant) {
         const admin = await getAdminUser();
@@ -149,7 +171,7 @@ const authRouter = router({
         }
       }
 
-      return { success: true, pending: isConsultant };
+      return { success: true, pending: isConsultant, pendingVerification: true };
     }),
 
   login: publicProcedure
@@ -162,6 +184,14 @@ const authRouter = router({
 
       const valid = await bcrypt.compare(input.password, user.passwordHash);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password." });
+
+      // Block login for unverified email addresses (skip for admin accounts)
+      if (!user.emailVerified && user.role !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "EMAIL_NOT_VERIFIED",
+        });
+      }
 
       // Pending consultants are allowed to log in — they see a pending-approval
       // banner in the app until the admin approves their account.
@@ -223,6 +253,47 @@ const authRouter = router({
       const passwordHash = await bcrypt.hash(input.newPassword, 12);
       await updateUserPassword(record.userId, passwordHash);
       await markPasswordResetTokenUsed(record.id);
+
+      return { success: true };
+    }),
+
+  verifyEmail: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const user = await getUserByEmailVerifyToken(input.token);
+      if (!user) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired verification link." });
+      }
+      if (user.emailVerified) {
+        // Already verified — treat as success
+        return { success: true };
+      }
+      if (user.emailVerifyTokenExpiresAt && new Date() > user.emailVerifyTokenExpiresAt) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This verification link has expired. Please request a new one." });
+      }
+      await markEmailVerified(user.id);
+      return { success: true };
+    }),
+
+  resendVerification: publicProcedure
+    .input(z.object({ email: z.string().email(), origin: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      // Always return success to prevent email enumeration
+      const user = await getUserByEmail(input.email);
+      if (!user || user.emailVerified) return { success: true };
+
+      const crypto = await import("crypto");
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await setEmailVerifyToken(user.id, verifyToken, verifyTokenExpiresAt);
+
+      const origin = input.origin ?? (ctx.req.headers.origin as string | undefined) ?? "https://auditqah-436kjx9h.manus.space";
+      await sendVerificationEmail({
+        to: user.email!,
+        recipientName: user.fullName ?? user.name ?? "User",
+        token: verifyToken,
+        origin,
+      });
 
       return { success: true };
     }),
