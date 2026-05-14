@@ -265,3 +265,15 @@ export const consultantNames = mysqlTable("consultantNames", {
 
 export type ConsultantName = typeof consultantNames.$inferSelect;
 export type InsertConsultantName = typeof consultantNames.$inferInsert;
+
+// ─── Reference-number counters ────────────────────────────────────────────────
+// One row per calendar date (YYYYMMDD). The counter is incremented atomically
+// via INSERT ... ON DUPLICATE KEY UPDATE so concurrent audit submissions on the
+// same date always receive a unique, monotonically increasing sequence number.
+export const refCounters = mysqlTable("refCounters", {
+  /** Calendar date in YYYYMMDD format, e.g. "20260514" */
+  date: varchar("date", { length: 8 }).primaryKey(),
+  /** Number of audits submitted on this date (starts at 1) */
+  counter: int("counter").notNull().default(0),
+});
+export type RefCounter = typeof refCounters.$inferSelect;

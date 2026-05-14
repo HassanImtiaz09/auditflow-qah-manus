@@ -1,6 +1,6 @@
-import { and, desc, eq, like, ne, or } from "drizzle-orm";
+import { and, desc, eq, like, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { auditComments, auditEvents, audits, consultantNames, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertUser, notifications, passwordResetTokens, users } from "../drizzle/schema";
+import { auditComments, auditEvents, audits, consultantNames, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertUser, notifications, passwordResetTokens, refCounters, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -481,4 +481,39 @@ export async function getAuditComments(auditId: number) {
     .from(auditComments)
     .where(eq(auditComments.auditId, auditId))
     .orderBy(auditComments.createdAt);
+}
+
+// ─── Atomic reference-number counter ─────────────────────────────────────────
+
+/**
+ * Atomically increment the per-date counter and return the new value.
+ *
+ * Uses INSERT ... ON DUPLICATE KEY UPDATE so concurrent callers on the same
+ * calendar date each receive a distinct, monotonically increasing integer.
+ * The returned value is used as the NNNN sequence in REF-YYYYMMDD-NNNN.
+ *
+ * @param date  Calendar date in YYYYMMDD format, e.g. "20260514"
+ * @returns     The new counter value (1-based)
+ */
+export async function getNextRefCounter(date: string): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+
+  // Atomically insert-or-increment the counter for this date.
+  // Drizzle's onDuplicateKeyUpdate maps to MySQL's ON DUPLICATE KEY UPDATE.
+  await db
+    .insert(refCounters)
+    .values({ date, counter: 1 })
+    .onDuplicateKeyUpdate({ set: { counter: sql`counter + 1` } });
+
+  // Read back the committed value.
+  const rows = await db
+    .select({ counter: refCounters.counter })
+    .from(refCounters)
+    .where(eq(refCounters.date, date))
+    .limit(1);
+
+  const counter = rows[0]?.counter;
+  if (counter == null) throw new Error(`refCounters row missing for date ${date}`);
+  return counter;
 }

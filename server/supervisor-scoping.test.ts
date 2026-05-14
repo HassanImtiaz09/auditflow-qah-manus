@@ -28,6 +28,7 @@ vi.mock("./db", () => ({
   createAudit: vi.fn(),
   updateAudit: vi.fn(),
   countAudits: vi.fn(),
+  getNextRefCounter: vi.fn(),
   createAuditEvent: vi.fn(),
   createAuditComment: vi.fn(),
   getAuditComments: vi.fn(),
@@ -170,6 +171,7 @@ describe("Supervisor scoping — invariant 1: submit denormalises name from cons
     });
     vi.mocked(db.getConsultantNameById).mockResolvedValue(MOCK_CONSULTANT_NAME as never);
     vi.mocked(db.countAudits).mockResolvedValue(0);
+    vi.mocked(db.getNextRefCounter).mockResolvedValue(1);
     vi.mocked(db.createAudit).mockResolvedValue({ ...MOCK_AUDIT, id: 200 } as never);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
     vi.mocked(db.getAdminUser).mockResolvedValue(MOCK_ADMIN_USER as never);

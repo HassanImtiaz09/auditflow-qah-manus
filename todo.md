@@ -491,3 +491,12 @@
 - [x] client/src/pages/Register.tsx: display 429 error message as toast
 - [x] server/rate-limit.test.ts: hammer login 11 times from same IP, assert 11th returns 429
 - [x] Run pnpm test and pnpm check — all pass (191 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 9: Atomic Reference-Number Generation
+
+- [x] drizzle/schema.ts: add refCounters table (date varchar(8) PK, counter int not null default 0)
+- [x] Run pnpm db:push to create the migration and apply it (migration: 0014_early_black_cat.sql)
+- [x] server/db.ts: add getNextRefCounter(date) helper using INSERT...ON DUPLICATE KEY UPDATE
+- [x] server/routers.ts: replace racy countAudits()+1 pattern with getNextRefCounter() in audits.submit
+- [x] server/ref-counter.test.ts: 10 concurrent submit calls, assert all refNumbers unique
+- [x] Run pnpm test and pnpm check — all pass (197 tests, 0 TypeScript errors)

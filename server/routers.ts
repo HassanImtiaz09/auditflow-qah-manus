@@ -74,6 +74,7 @@ import {
   setEmailVerifyToken,
   markEmailVerified,
   getConsultantNameById,
+  getNextRefCounter,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -706,12 +707,14 @@ const auditRouter = router({
         }
       }
 
-      const total = await countAudits();
       const now = new Date();
       const y = now.getFullYear();
       const mo = String(now.getMonth() + 1).padStart(2, "0");
       const dy = String(now.getDate()).padStart(2, "0");
-      const seq = String(total + 1).padStart(4, "0");
+      const dateKey = `${y}${mo}${dy}`;
+      // Atomically increment the per-date counter so concurrent submissions
+      // always receive a unique sequence number (no race condition).
+      const seq = String(await getNextRefCounter(dateKey)).padStart(4, "0");
       const refNumber = `REF-${y}${mo}${dy}-${seq}`;
 
        let supervisorName: string | null = null;
