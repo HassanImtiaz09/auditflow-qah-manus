@@ -351,3 +351,107 @@ export async function sendVerificationEmail(opts: {
     text: `Dear ${recipientName},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
   });
 }
+
+// ─── Registration Confirmation ────────────────────────────────────────────────
+
+/**
+ * Send a welcome / registration confirmation email to a newly registered user.
+ * Sent in addition to the verification email so the user has a clear record
+ * of their registration details.
+ */
+export async function sendRegistrationConfirmationEmail(opts: {
+  to: string;
+  recipientName: string;
+  grade: string;
+  isConsultant: boolean;
+}): Promise<boolean> {
+  const { to, recipientName, grade, isConsultant } = opts;
+
+  const nextStepHtml = isConsultant
+    ? `<p>As a <strong>${grade}</strong>, your account is pending approval by the department administrator.
+       You will receive a further email once your consultant access has been approved.</p>`
+    : `<p>Your account is now active. Please verify your email address using the link in the separate
+       verification email we have just sent, then log in to start submitting clinical audits.</p>`;
+
+  const bodyHtml = `
+    <p>Dear ${recipientName},</p>
+    <p>Thank you for registering with <strong>AuditFlow QAH</strong> — the ENT Clinical Audit Registry
+    at Portsmouth Hospitals University NHS Trust.</p>
+    <p>Your account has been created with the following details:</p>
+    <div style="background:#f0f4fa;border-left:4px solid #003366;border-radius:4px;padding:14px 18px;margin:18px 0;">
+      <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">Registered email</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${to}</p>
+      <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">Clinical grade</p>
+      <p style="margin:0;font-size:15px;font-weight:700;color:#003366;">${grade}</p>
+    </div>
+    ${nextStepHtml}
+    <p style="font-size:12px;color:#6b7280;">If you did not create this account, please contact your department IT lead immediately.</p>`;
+
+  const subject = "[AuditFlow] Registration confirmed — AuditFlow QAH";
+  return sendEmail({
+    to,
+    subject,
+    html: baseTemplate(subject, bodyHtml),
+    text: `Dear ${recipientName},\n\nYour AuditFlow QAH account has been created.\nEmail: ${to}\nGrade: ${grade}\n\n${isConsultant ? "Your account is pending consultant approval by the administrator." : "Please verify your email address using the link in the separate verification email, then log in."}\n\nIf you did not create this account, contact your department IT lead.`,
+  });
+}
+
+// ─── Audit Submission Confirmation ───────────────────────────────────────────
+
+/**
+ * Send an audit submission confirmation email to the submitter and all collaborators.
+ * Informs them that the audit has been registered and is awaiting consultant review.
+ */
+export async function sendAuditSubmissionEmails(opts: {
+  refNumber: string;
+  topic: string;
+  submitterName: string;
+  submitterEmail: string | null;
+  supervisorName: string | null;
+  collaborators: string | null; // raw JSON
+}): Promise<void> {
+  const { refNumber, topic, submitterName, submitterEmail, supervisorName, collaborators } = opts;
+
+  const supervisorLine = supervisorName
+    ? `<p>The audit has been assigned to <strong>${supervisorName}</strong> for review.</p>`
+    : `<p>The audit is awaiting assignment to a supervising consultant.</p>`;
+
+  const buildBody = (recipientName: string) => `
+    <p>Dear ${recipientName},</p>
+    <p>This is a confirmation that the following clinical audit has been successfully submitted to
+    <strong>AuditFlow QAH</strong> and is now awaiting consultant review.</p>
+    <div style="background:#f0f4fa;border-left:4px solid #003366;border-radius:4px;padding:14px 18px;margin:18px 0;">
+      <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Reference number</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${refNumber}</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Audit topic</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${topic}</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Submitted by</p>
+      <p style="margin:0;font-size:14px;color:#374151;">${submitterName}</p>
+    </div>
+    ${supervisorLine}
+    <p>You will receive a further email when the supervising consultant has reviewed the audit.</p>
+    <p style="font-size:12px;color:#6b7280;">If you believe you received this in error, please contact your department audit lead.</p>`;
+
+  const subject = `[AuditFlow] Audit submitted — ${refNumber}: ${topic}`;
+
+  const recipients: { name: string; email: string }[] = [];
+
+  if (submitterEmail) {
+    recipients.push({ name: submitterName, email: submitterEmail });
+  }
+
+  const collabs = parseCollaborators(collaborators);
+  for (const c of collabs) {
+    if (c.email && !recipients.find(r => r.email === c.email)) {
+      recipients.push({ name: c.name || c.email, email: c.email });
+    }
+  }
+
+  await Promise.allSettled(
+    recipients.map(async (r) => {
+      const html = baseTemplate(subject, buildBody(r.name));
+      const text = `Dear ${r.name},\n\nAudit ${refNumber} ("${topic}") has been submitted by ${submitterName} and is awaiting consultant review.\n${supervisorName ? `Assigned to: ${supervisorName}` : "Awaiting supervisor assignment."}\n\nYou will receive a further email when the audit has been reviewed.`;
+      await sendEmail({ to: r.email, subject, html, text });
+    })
+  );
+}

@@ -78,7 +78,7 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { getStandardPresets } from "../shared/auditStandards";
 import { notifyOwner } from "./_core/notification";
-import { sendAuditStatusEmails, sendVerificationEmail } from "./_core/email";
+import { sendAuditStatusEmails, sendVerificationEmail, sendRegistrationConfirmationEmail, sendAuditSubmissionEmails } from "./_core/email";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 
@@ -171,7 +171,15 @@ const authRouter = router({
         }
       }
 
-      // If email could not be sent, return the verify URL so the frontend can show it
+      // Send registration confirmation email (separate from verification — gives user a record of their registration)
+      await sendRegistrationConfirmationEmail({
+        to: input.email,
+        recipientName: `${input.title ? input.title + " " : ""}${input.fullName}`,
+        grade: input.grade,
+        isConsultant,
+      });
+
+      // If verification email could not be sent, return the verify URL so the frontend can show it
       const verifyUrl = emailSent ? null : `${origin}/verify-email?token=${verifyToken}`;
       return { success: true, pending: isConsultant, pendingVerification: true, verifyUrl };
     }),
@@ -688,6 +696,15 @@ const auditRouter = router({
             });
           }
         }
+        // Send submission confirmation emails to submitter and collaborators
+        await sendAuditSubmissionEmails({
+          refNumber,
+          topic: input.topic,
+          submitterName: user.fullName ?? user.name ?? "Auditor",
+          submitterEmail: user.email ?? null,
+          supervisorName,
+          collaborators: input.collaborators ? JSON.stringify(input.collaborators) : null,
+        });
       }
 
       return { success: true, refNumber, audit };

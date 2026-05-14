@@ -383,3 +383,12 @@
 - [x] Run full test suite — all 135 tests pass
 - [x] Delete all non-admin accounts
 - [x] Request RESEND_API_KEY from user
+
+## Round 23 — Missing Email Notifications
+
+- [x] Backend: add sendRegistrationConfirmationEmail helper — sends a welcome/confirmation email to the newly registered user (all roles: clinician, consultant, admin)
+- [x] Backend: wire sendRegistrationConfirmationEmail into register procedure after verification email
+- [x] Backend: add sendAuditSubmissionEmails helper — sends "Your audit has been submitted and is awaiting consultant review" to submitter + collaborators
+- [x] Backend: wire sendAuditSubmissionEmails into submit procedure (non-draft path only)
+- [x] Backend: verified sendAuditStatusEmails correctly fans out to collaborators on decide (logic confirmed in code review — submitter + collaborators + actor)
+- [x] Tests: all 135 tests passing (no regressions)
