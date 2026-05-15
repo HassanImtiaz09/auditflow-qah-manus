@@ -114,9 +114,11 @@ const authRouter = router({
       const approved = !isConsultant;
       const roleApproved = !isConsultant;
 
-      // Generate email verification token
+      // Generate email verification token.
+      // The raw token is sent in the URL; only the SHA-256 hash is stored at rest.
       const crypto = await import("crypto");
-      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const rawVerifyToken = crypto.randomBytes(32).toString("hex");
+      const hashedVerifyToken = crypto.createHash("sha256").update(rawVerifyToken).digest("hex");
       const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       const openId = `local-${nanoid()}`;
@@ -138,15 +140,15 @@ const authRouter = router({
       const newUser = await getUserByEmail(input.email);
       if (!newUser) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Registration failed." });
 
-      // Store verification token
-      await setEmailVerifyToken(newUser.id, verifyToken, verifyTokenExpiresAt);
+      // Store the hashed token — never the raw token
+      await setEmailVerifyToken(newUser.id, hashedVerifyToken, verifyTokenExpiresAt);
 
       // Send verification email (best-effort — non-fatal if provider not configured)
       const origin = input.origin ?? (ctx.req.headers.origin as string | undefined) ?? "https://auditqah-436kjx9h.manus.space";
       const emailSent = await sendVerificationEmail({
         to: input.email,
         recipientName: `${input.title ? input.title + " " : ""}${input.fullName}`,
-        token: verifyToken,
+        token: rawVerifyToken,
         origin,
       });
 
@@ -182,7 +184,7 @@ const authRouter = router({
       });
 
       // If verification email could not be sent, return the verify URL so the frontend can show it
-      const verifyUrl = emailSent ? null : `${origin}/verify-email?token=${verifyToken}`;
+      const verifyUrl = emailSent ? null : `${origin}/verify-email?token=${rawVerifyToken}`;
       return { success: true, pending: isConsultant, pendingVerification: true, verifyUrl };
     }),
 
@@ -290,7 +292,10 @@ const authRouter = router({
   verifyEmail: publicProcedure
     .input(z.object({ token: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      const user = await getUserByEmailVerifyToken(input.token);
+      // Hash the incoming raw token before lookup — tokens are stored hashed at rest
+      const crypto = await import("crypto");
+      const hashedToken = crypto.createHash("sha256").update(input.token).digest("hex");
+      const user = await getUserByEmailVerifyToken(hashedToken);
       if (!user) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired verification link." });
       }
@@ -313,15 +318,17 @@ const authRouter = router({
       if (!user || user.emailVerified) return { success: true };
 
       const crypto = await import("crypto");
-      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const rawVerifyToken = crypto.randomBytes(32).toString("hex");
+      // Hash before storing — raw token is only ever in the email URL
+      const hashedVerifyToken = crypto.createHash("sha256").update(rawVerifyToken).digest("hex");
       const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await setEmailVerifyToken(user.id, verifyToken, verifyTokenExpiresAt);
+      await setEmailVerifyToken(user.id, hashedVerifyToken, verifyTokenExpiresAt);
 
       const origin = input.origin ?? (ctx.req.headers.origin as string | undefined) ?? "https://auditqah-436kjx9h.manus.space";
       await sendVerificationEmail({
         to: user.email!,
         recipientName: user.fullName ?? user.name ?? "User",
-        token: verifyToken,
+        token: rawVerifyToken,
         origin,
       });
 

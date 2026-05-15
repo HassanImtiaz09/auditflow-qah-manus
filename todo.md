@@ -531,3 +531,17 @@
 - [x] Helmet applied in both dev and production — Vite HMR unaffected (connect-src 'self' covers WebSocket)
 - [x] server/security-headers.test.ts: 13 smoke tests asserting HSTS, X-Frame-Options, Referrer-Policy, X-Content-Type-Options, no X-Powered-By, CSP directives
 - [x] Run pnpm test and pnpm check — all pass (232 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 13: Hash Password-Reset and Email-Verify Tokens at Rest
+
+- [x] Audit: requestPasswordReset already stores sha256(rawToken) — no change needed
+- [x] Audit: resetPassword already hashes incoming token before lookup — no change needed
+- [x] Audit: emailVerifyToken was stored RAW — fixed
+- [x] Audit: verifyEmail was looking up raw token — fixed
+- [x] Fix: passwordResetTokens already correct (no change)
+- [x] Fix: resetPassword already correct (no change)
+- [x] Fix: register and resendVerification now store sha256(rawToken) in emailVerifyToken
+- [x] Fix: verifyEmail now hashes input.token before getUserByEmailVerifyToken lookup
+- [x] server/auth.password-reset.test.ts already tests hashed lookup path — no change needed
+- [x] server/auth.email-verify.test.ts: 7 new tests covering hash round-trip, expiry, enumeration prevention
+- [x] Run pnpm test and pnpm check — all pass (239 tests, 0 TypeScript errors)
