@@ -14,7 +14,7 @@ import {
   getUserByEmail,
   upsertUser,
   createNotification,
-  getAdminUser,
+  getAdminUsers,
   getUnreadNotifications,
 } from "./db";
 
@@ -79,7 +79,8 @@ describe("Round 15 — Pending consultant login", () => {
 
 describe("Round 15 — Admin notification on consultant registration", () => {
   it("creates an in-app notification for the admin when a consultant registers", async () => {
-    const admin = await getAdminUser();
+    const admins = await getAdminUsers();
+    const admin = admins[0];
     if (!admin) {
       // Skip if no admin seeded in this test environment
       return;
@@ -106,7 +107,8 @@ describe("Round 15 — Admin notification on consultant registration", () => {
   });
 
   it("notification type is consultant_registered (not audit_submitted)", async () => {
-    const admin = await getAdminUser();
+    const admins = await getAdminUsers();
+    const admin = admins[0];
     if (!admin) return;
 
     const email = `notif-type-${Date.now()}@test.nhs.uk`;

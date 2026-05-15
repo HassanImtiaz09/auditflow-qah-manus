@@ -27,7 +27,7 @@ vi.mock("./db", () => ({
   createAuditComment: vi.fn(),
   getAuditComments: vi.fn(),
   createNotification: vi.fn(),
-  getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
   getAllAudits: vi.fn(),
   // legacy — no longer called by submit but kept so other test files that share
   // the module mock don't break
@@ -167,7 +167,7 @@ describe("audits.submit — concurrent submissions produce unique refNumbers", (
     });
 
     vi.mocked(db.getUserById).mockResolvedValue(MOCK_CLINICIAN_USER as never);
-    vi.mocked(db.getAdminUser).mockResolvedValue(null);
+    vi.mocked(db.getAdminUsers).mockResolvedValue([]);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
     vi.mocked(db.getConsultantNameById).mockResolvedValue(null);

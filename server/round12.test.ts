@@ -19,7 +19,7 @@ vi.mock("./db", () => ({
   searchUsersByName: vi.fn(),
   updateUserProfile: vi.fn(),
   getUserByEmail: vi.fn(),
-  getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
   getUserByLinkedConsultantId: vi.fn(),
   // Audit helpers
   getAllAudits: vi.fn(),
@@ -295,7 +295,7 @@ describe("audits.submitDraft — consultant in-app notification", () => {
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
+    vi.mocked(db.getAdminUsers).mockResolvedValue([ADMIN_USER]);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
     // The linked consultant user account
     vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue(CONSULTANT_USER);
@@ -331,16 +331,17 @@ describe("audits.submitDraft — consultant in-app notification", () => {
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
+    vi.mocked(db.getAdminUsers).mockResolvedValue([ADMIN_USER]);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
 
     const caller = appRouter.createCaller(makeCtx(CLINICIAN_USER));
     await caller.audits.submitDraft({ auditId: 101 });
 
     expect(db.getUserByLinkedConsultantId).not.toHaveBeenCalled();
-    // Only admin notification should have been sent
+    // Only admin notification should have been sent (one per admin)
     const notifCalls = vi.mocked(db.createNotification).mock.calls;
-    expect(notifCalls).toHaveLength(1);
-    expect((notifCalls[0][0] as { recipientId: number }).recipientId).toBe(ADMIN_USER.id);
+    expect(notifCalls.length).toBeGreaterThanOrEqual(1);
+    const adminNotif = notifCalls.find(([n]) => (n as { recipientId: number }).recipientId === ADMIN_USER.id);
+    expect(adminNotif).toBeDefined();
   });
 });

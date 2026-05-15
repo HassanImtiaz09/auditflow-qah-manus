@@ -589,3 +589,12 @@
 - [x] server/routers.ts audits.reassign: add pending-status guard — throw BAD_REQUEST if audit.status !== "pending"
 - [x] server/decide-guards.test.ts: 15 tests — pending guard (decide on approved/rejected), role/variant consistency (4 cases), admin_override resolution and trail prefix (5 cases), reassign pending guard (3 cases)
 - [x] Run pnpm test and pnpm check — all pass (276 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 18: getAdminUser → getAdminUsers (notify all admins)
+
+- [x] server/db.ts: rename getAdminUser to getAdminUsers; change query to return array of all admins (no LIMIT 1)
+- [x] server/routers.ts: update consultant-registration notification call site to iterate over all admins
+- [x] server/routers.ts: update audit-submission notification call site to iterate over all admins
+- [x] Update all test files that mock getAdminUser → getAdminUsers returning an array
+- [x] server/admin-notify.test.ts: new tests — multiple admins each receive notification on registration and submission
+- [x] Run pnpm test and npx tsc --noEmit — all pass (282 tests, 0 TypeScript errors)

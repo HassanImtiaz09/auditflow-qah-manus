@@ -19,7 +19,7 @@ vi.mock("./db", () => ({
   searchUsersByName: vi.fn(),
   updateUserProfile: vi.fn(),
   getUserByEmail: vi.fn(),
-  getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
   getUserByLinkedConsultantId: vi.fn(),
   getUserByOpenId: vi.fn(),
   // Audit helpers
@@ -229,7 +229,7 @@ describe("audits.submitDraft — audit_assigned notification type", () => {
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
+    vi.mocked(db.getAdminUsers).mockResolvedValue([ADMIN_USER]);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
     vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue(CONSULTANT_USER);
 
@@ -253,7 +253,7 @@ describe("audits.submitDraft — audit_assigned notification type", () => {
     vi.mocked(db.getAuditById).mockResolvedValue(draftAudit as ReturnType<typeof makeAudit>);
     vi.mocked(db.updateAudit).mockResolvedValue({ ...draftAudit, status: "pending" } as ReturnType<typeof makeAudit>);
     vi.mocked(db.createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(db.getAdminUser).mockResolvedValue(ADMIN_USER);
+    vi.mocked(db.getAdminUsers).mockResolvedValue([ADMIN_USER]);
     vi.mocked(db.createNotification).mockResolvedValue(undefined);
     vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue(CONSULTANT_USER);
 

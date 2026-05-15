@@ -31,7 +31,7 @@ import {
   createNotification,
   getAllAudits,
   getAllUsers,
-  getAdminUser,
+  getAdminUsers,
   getApprovedConsultants,
   getAuditById,
   getAuditByRef,
@@ -154,9 +154,9 @@ const authRouter = router({
       });
 
       if (isConsultant) {
-        const admin = await getAdminUser();
-        if (admin) {
-          // In-app notification for admin
+        const adminUsers = await getAdminUsers();
+        // In-app notification for every admin
+        for (const admin of adminUsers) {
           await createNotification({
             recipientId: admin.id,
             userId: newUser.id,
@@ -647,9 +647,9 @@ const auditRouter = router({
         detail: audit.supervisorName ? `Assigned to ${audit.supervisorName}` : null,
       });
 
-      // Notify admin
-      const admin = await getAdminUser();
-      if (admin) {
+      // Notify all admins
+      const adminUsers = await getAdminUsers();
+      for (const admin of adminUsers) {
         await createNotification({
           recipientId: admin.id,
           userId: ctx.user.id,
@@ -763,9 +763,9 @@ const auditRouter = router({
           eventType: "submitted",
           detail: supervisorName ? `Assigned to ${supervisorName}` : null,
         });
-        // Notify admin
-        const adminUser = await getAdminUser();
-        if (adminUser) {
+        // Notify all admins
+        const adminUsers = await getAdminUsers();
+        for (const adminUser of adminUsers) {
           await createNotification({
             recipientId: adminUser.id,
             userId: user.id,

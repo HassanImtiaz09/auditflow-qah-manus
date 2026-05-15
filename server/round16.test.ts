@@ -13,7 +13,7 @@ import {
   createNotification,
   getUserByEmail,
   getUserById,
-  getAdminUser,
+  getAdminUsers,
   getUnreadNotifications,
   upsertUser,
 } from "./db";
@@ -55,7 +55,8 @@ describe("Round 16 — Approval notification", () => {
   });
 
   it("account_approved notification is created for the consultant after approval", async () => {
-    const admin = await getAdminUser();
+    const admins = await getAdminUsers();
+    const admin = admins[0];
     if (!admin) return; // skip if no admin in test DB
 
     const email = `r16-notif-${Date.now()}@test.nhs.uk`;
@@ -81,7 +82,8 @@ describe("Round 16 — Approval notification", () => {
   });
 
   it("account_approved notification has correct type (not audit_approved)", async () => {
-    const admin = await getAdminUser();
+    const admins = await getAdminUsers();
+    const admin = admins[0];
     if (!admin) return;
 
     const email = `r16-type-${Date.now()}@test.nhs.uk`;

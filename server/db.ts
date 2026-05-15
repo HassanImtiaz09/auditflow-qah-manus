@@ -377,11 +377,10 @@ export async function getRecentRegistrations(limit = 10) {
 
 // ─── Notification helpers ─────────────────────────────────────────────────────
 
-export async function getAdminUser() {
+export async function getAdminUsers() {
   const db = await getDb();
-  if (!db) return undefined;
-  const r = await db.select().from(users).where(eq(users.auditRole, "admin")).limit(1);
-  return r[0];
+  if (!db) return [];
+  return db.select().from(users).where(eq(users.auditRole, "admin")).limit(20);
 }
 
 export async function createNotification(data: typeof notifications.$inferInsert) {

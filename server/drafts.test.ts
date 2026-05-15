@@ -18,7 +18,7 @@ vi.mock("./db", () => ({
   getAuditByRef: vi.fn(),
   getAuditsForConsultant: vi.fn(),
   getUserById: vi.fn(),
-  getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
   getApprovedConsultants: vi.fn(),
   createAuditEvent: vi.fn(),
   getAuditEvents: vi.fn(),
@@ -33,7 +33,7 @@ import {
   updateAudit,
   deleteAudit,
   getUserById,
-  getAdminUser,
+  getAdminUsers,
   createAuditEvent,
   createNotification,
 } from "./db";
@@ -210,7 +210,7 @@ describe("audits.submitDraft", () => {
     vi.mocked(getUserById).mockResolvedValue(MOCK_ACTOR as any);
     vi.mocked(updateAudit).mockResolvedValue(undefined);
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(getAdminUser).mockResolvedValue(null as any);
+    vi.mocked(getAdminUsers).mockResolvedValue([] as any);
 
     const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
     const result = await caller.audits.submitDraft({ auditId: 1 });
@@ -238,7 +238,7 @@ describe("audits.submitDraft", () => {
     vi.mocked(getUserById).mockResolvedValue(MOCK_ACTOR as any);
     vi.mocked(updateAudit).mockResolvedValue(undefined);
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(getAdminUser).mockResolvedValue(ADMIN as any);
+    vi.mocked(getAdminUsers).mockResolvedValue([ADMIN] as any);
     vi.mocked(createNotification).mockResolvedValue(undefined);
 
     const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
@@ -304,7 +304,7 @@ describe("audits.submitDraft", () => {
     vi.mocked(getUserById).mockResolvedValue(MOCK_ACTOR as any);
     vi.mocked(updateAudit).mockResolvedValue(undefined);
     vi.mocked(createAuditEvent).mockResolvedValue(undefined);
-    vi.mocked(getAdminUser).mockResolvedValue(null as any);
+    vi.mocked(getAdminUsers).mockResolvedValue([] as any);
 
     const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
     const result = await caller.audits.submitDraft({ auditId: 1 });

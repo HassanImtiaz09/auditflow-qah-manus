@@ -31,7 +31,7 @@ vi.mock("./db", () => ({
   createAuditComment: vi.fn(),
   getAuditComments: vi.fn(),
   createNotification: vi.fn(),
-  getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
   getConsultantNames: vi.fn(),
   getMyAudits: vi.fn(),
   getMyDraftAudits: vi.fn(),
