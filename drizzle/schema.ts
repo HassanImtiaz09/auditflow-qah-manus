@@ -231,6 +231,14 @@ export const auditEvents = mysqlTable("auditEvents", {
   /** Optional human-readable detail (e.g. decision note, new supervisor name) */
   detail: text("detail"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  /**
+   * Hash chain for tamper-evidence.
+   * prevHash: SHA-256 hex of the previous event in this audit's chain ("0" for the first).
+   * hash: SHA-256 hex of (prevHash + JSON.stringify of this event's content fields).
+   * Use audits.verifyTrail to recompute and validate the chain.
+   */
+  prevHash: varchar("prevHash", { length: 64 }),
+  hash: varchar("hash", { length: 64 }),
 });
 
 export type AuditEvent = typeof auditEvents.$inferSelect;

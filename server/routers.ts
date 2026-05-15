@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { SignJWT, jwtVerify } from "jose";
 import { ENV } from "./_core/env";
+import { logger } from "./_core/logger";
 
 const NHS_COOKIE = "nhs_audit_session";
 
@@ -76,6 +77,7 @@ import {
   getConsultantNameById,
   getNextRefCounter,
   getAuditPublicStatus,
+  computeEventHash,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -172,7 +174,7 @@ const authRouter = router({
           });
         } catch {
           // Non-fatal: in-app notification already sent above
-          console.warn("[Register] Failed to send owner push notification for consultant registration");
+          logger.warn("[Register] Failed to send owner push notification for consultant registration");
         }
       }
 
@@ -1031,6 +1033,67 @@ const auditRouter = router({
       return getAuditEvents(input.auditId);
     }),
 
+  /**
+   * Verify the tamper-evident hash chain for an audit's trail.
+   *
+   * Fetches all events for the given audit in chronological order, recomputes
+   * each SHA-256 link, and returns whether the chain is intact.
+   *
+   * Access: same as audits.history — admin always, submitter or supervisor otherwise.
+   */
+  verifyTrail: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const actor = await getUserById(ctx.user.id);
+      if (!actor) throw new TRPCError({ code: "UNAUTHORIZED" });
+      if (actor.auditRole !== "admin") {
+        const audit = await getAuditById(input.auditId);
+        if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+        const isSubmitter = audit.submittedById === actor.id;
+        const isSupervisor =
+          actor.linkedConsultantId !== null &&
+          actor.linkedConsultantId !== undefined &&
+          audit.supervisorId !== null &&
+          actor.linkedConsultantId === audit.supervisorId;
+        if (!isSubmitter && !isSupervisor) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const events = await getAuditEvents(input.auditId);
+
+      // Events with no hash (legacy rows inserted before this feature) are
+      // treated as valid — we only verify the chain from the first hashed event.
+      const hashedEvents = events.filter((e) => e.hash !== null && e.hash !== undefined);
+
+      if (hashedEvents.length === 0) {
+        return { valid: true, brokenAt: null, eventCount: events.length, hashedCount: 0 };
+      }
+
+      let expectedPrevHash = "0";
+      let brokenAt: number | null = null;
+
+      for (const event of hashedEvents) {
+        if (event.prevHash !== expectedPrevHash) {
+          brokenAt = event.id;
+          break;
+        }
+        const recomputed = computeEventHash(event.prevHash!, {
+          auditId: event.auditId,
+          actorId: event.actorId,
+          actorName: event.actorName,
+          eventType: event.eventType,
+          detail: event.detail,
+          createdAt: event.createdAt,
+        });
+        if (recomputed !== event.hash) {
+          brokenAt = event.id;
+          break;
+        }
+        expectedPrevHash = event.hash!;
+      }
+
+      return { valid: brokenAt === null, brokenAt, eventCount: events.length, hashedCount: hashedEvents.length };
+    }),
+
   /** Returns the canonical ENT consultant roster from the consultantNames table */
   consultants: protectedProcedure.query(async () => {
     const names = await getConsultantNames();
@@ -1257,7 +1320,7 @@ const usersRouter = router({
             content: `${targetUser.title ? targetUser.title + " " : ""}${targetUser.fullName ?? targetUser.name ?? "A consultant"} (${targetUser.email}) has been approved as a consultant on AuditFlow ENT QAH.`,
           });
         } catch {
-          console.warn("[Approve] Failed to send owner push notification for consultant approval");
+          logger.warn("[Approve] Failed to send owner push notification for consultant approval");
         }
       }
 

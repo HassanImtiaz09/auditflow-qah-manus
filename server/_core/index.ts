@@ -6,6 +6,8 @@ import { createServer } from "http";
 import net from "net";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import pinoHttp from "pino-http";
+import { logger } from "./logger";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -201,6 +203,13 @@ async function startServer() {
   // middleware for that specific path rather than raising this global limit.
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ limit: "1mb", extended: true }));
+
+  // ── Structured HTTP request logging ───────────────────────────────────────
+  // pinoHttp logs every request/response with method, url, status, and
+  // response time. Sensitive headers (cookie, authorization) are redacted
+  // by the logger's redact config in server/_core/logger.ts.
+  app.use(pinoHttp({ logger }));
+
   registerStorageProxy(app);
 
   // Auth rate limiters — applied before the tRPC handler so requests are

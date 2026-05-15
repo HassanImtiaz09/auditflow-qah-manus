@@ -26,6 +26,8 @@ import {
   RefreshCw,
   FileText,
   ArchiveIcon,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -85,6 +87,10 @@ const EVENT_CONFIG: Record<
 
 function AuditHistoryPanel({ auditId }: { auditId: number }) {
   const { data: events = [], isLoading, isError, refetch } = trpc.audits.history.useQuery({ auditId });
+  const { data: trailVerification } = trpc.audits.verifyTrail.useQuery(
+    { auditId },
+    { enabled: events.length > 0 }
+  );
 
   if (isLoading) {
     return (
@@ -115,9 +121,24 @@ function AuditHistoryPanel({ auditId }: { auditId: number }) {
 
   return (
     <div className="px-6 py-4 bg-muted/30 border-t border-border">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-        Audit Trail
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Audit Trail
+        </p>
+        {trailVerification && trailVerification.hashedCount > 0 && (
+          trailVerification.valid ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+              <ShieldCheck className="w-3 h-3" />
+              Trail integrity verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+              <ShieldAlert className="w-3 h-3" />
+              Trail integrity broken
+            </span>
+          )
+        )}
+      </div>
       <ol className="relative border-l border-border ml-2 space-y-4">
         {events.map((ev) => {
           const cfg = EVENT_CONFIG[ev.eventType] ?? {

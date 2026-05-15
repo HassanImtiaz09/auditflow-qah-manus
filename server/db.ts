@@ -1,7 +1,9 @@
+import { createHash } from "crypto";
 import { and, desc, eq, like, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { auditComments, auditEvents, audits, consultantNames, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertUser, notifications, passwordResetTokens, refCounters, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { logger } from "./_core/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10,7 +12,7 @@ export async function getDb() {
     try {
       _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      logger.warn({ err: error }, "[Database] Failed to connect");
       _db = null;
     }
   }
@@ -467,10 +469,53 @@ export async function updateUserProfile(
 
 // ─── Audit Event helpers (Audit Trail) ───────────────────────────────────────
 
+/**
+ * Compute the SHA-256 hash for an audit trail event.
+ *
+ * The hash covers: prevHash + a stable JSON serialisation of the event's
+ * content fields (auditId, actorId, actorName, eventType, detail, createdAt).
+ * The `hash` and `prevHash` fields themselves are excluded from the input so
+ * the computation is deterministic regardless of insertion order.
+ *
+ * @param prevHash  The hash of the preceding event in this audit's chain,
+ *                  or the sentinel "0" for the very first event.
+ * @param event     The event data (without hash fields).
+ */
+export function computeEventHash(
+  prevHash: string,
+  event: Pick<InsertAuditEvent, "auditId" | "actorId" | "actorName" | "eventType" | "detail" | "createdAt">
+): string {
+  const payload = prevHash + JSON.stringify({
+    auditId: event.auditId,
+    actorId: event.actorId ?? null,
+    actorName: event.actorName ?? null,
+    eventType: event.eventType,
+    detail: event.detail ?? null,
+    // Normalise to ISO string so the hash is stable across JS Date / DB round-trips
+    createdAt: event.createdAt instanceof Date
+      ? event.createdAt.toISOString()
+      : String(event.createdAt),
+  });
+  return createHash("sha256").update(payload, "utf8").digest("hex");
+}
+
 export async function createAuditEvent(data: InsertAuditEvent) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(auditEvents).values(data);
+
+  // Fetch the most recent event for this audit to get the chain tip
+  const [lastEvent] = await db
+    .select({ hash: auditEvents.hash })
+    .from(auditEvents)
+    .where(eq(auditEvents.auditId, data.auditId))
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(1);
+
+  const prevHash = lastEvent?.hash ?? "0";
+  const now = data.createdAt ?? new Date();
+  const hash = computeEventHash(prevHash, { ...data, createdAt: now });
+
+  await db.insert(auditEvents).values({ ...data, createdAt: now, prevHash, hash });
 }
 
 export async function getAuditEvents(auditId: number) {

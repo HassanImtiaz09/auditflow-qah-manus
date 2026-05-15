@@ -606,3 +606,26 @@
 - [x] Delete server/_core/sdk.ts (only imported by oauth.ts)
 - [x] Verify COOKIE_NAME is only used in NHS auth paths after deletion
 - [x] Run pnpm test and npx tsc --noEmit — all pass (282 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 20: Structured logging (pino)
+- [ ] pnpm add pino pino-http && pnpm add -D pino-pretty
+- [ ] Create server/_core/logger.ts — pino instance with redact config (passwords, tokens, cookies)
+- [ ] Wire app.use(pinoHttp({ logger })) in server/_core/index.ts
+- [ ] Replace console.warn/info/error in server/_core/email.ts with logger calls
+- [ ] Replace console.warn/info/error in server/routers.ts with logger calls
+- [ ] Replace console.warn/info/error in server/db.ts with logger calls
+- [ ] Dev: pino-pretty transport; production: JSON
+
+## Tranche A — Prompt 21: Tamper-evident audit trail (hash chain)
+- [ ] Add prevHash varchar(64) and hash varchar(64) columns to auditEvents table in drizzle/schema.ts
+- [ ] pnpm db:push to migrate
+- [ ] Update createAuditEvent in server/db.ts to fetch last event hash and compute SHA-256 chain
+- [ ] Add audits.verifyTrail({ auditId }) tRPC procedure
+- [ ] Surface "✓ Audit trail integrity verified" badge in Audit Registry expanded row UI
+- [ ] Vitest tests for verifyTrail procedure
+
+## Tranche A — Prompt 22: Integration tests (testcontainers MySQL)
+- [ ] pnpm add -D @testcontainers/mysql testcontainers
+- [ ] Add vitest setup file server/integration/setup.ts that boots MySQL and runs migrations
+- [ ] Write server/integration/supervisor-scoping.int.test.ts with 4 assertions
+- [ ] Update vitest.config.ts to include server/integration/*.int.test.ts as separate suite

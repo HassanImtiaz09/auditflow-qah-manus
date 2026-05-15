@@ -12,6 +12,7 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { ENV } from "./env";
+import { logger } from "./logger";
 
 // ─── Security helpers ─────────────────────────────────────────────────────────
 
@@ -83,14 +84,14 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         text: payload.text,
       });
       if (error) {
-        console.warn(`[Email/Resend] Failed to send to ${payload.to}:`, error);
+        logger.warn({ to: payload.to, subject: payload.subject, err: error }, "[Email/Resend] Failed to send");
         // Fall through to SMTP
       } else {
-        console.info(`[Email/Resend] Sent "${payload.subject}" to ${payload.to}`);
+        logger.info({ to: payload.to, subject: payload.subject }, "[Email/Resend] Sent");
         return true;
       }
     } catch (err) {
-      console.warn(`[Email/Resend] Exception sending to ${payload.to}:`, err);
+      logger.warn({ to: payload.to, subject: payload.subject, err }, "[Email/Resend] Exception sending");
       // Fall through to SMTP
     }
   }
@@ -106,18 +107,16 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         html: payload.html,
         text: payload.text,
       });
-      console.info(`[Email/SMTP] Sent "${payload.subject}" to ${payload.to}`);
+      logger.info({ to: payload.to, subject: payload.subject }, "[Email/SMTP] Sent");
       return true;
     } catch (err) {
-      console.warn(`[Email/SMTP] Failed to send to ${payload.to}:`, err);
+      logger.warn({ to: payload.to, subject: payload.subject, err }, "[Email/SMTP] Failed to send");
       return false;
     }
   }
 
   // 3. No provider configured
-  console.warn(
-    `[Email] No email provider configured — skipping email to ${payload.to}: "${payload.subject}"`
-  );
+  logger.warn({ to: payload.to, subject: payload.subject }, "[Email] No email provider configured — skipping");
   return false;
 }
 
