@@ -559,11 +559,11 @@
 
 ## Tranche A — Prompt 15: Email New Supervisor on Reassignment
 
-- [ ] server/_core/email.ts: extend sendAuditStatusEmails opts to accept newSupervisorEmail + newSupervisorRecipientName
-- [ ] server/_core/email.ts: when decision === "reassigned" and newSupervisor provided, build a distinct "newly assigned to you" body and add to recipients (deduped)
-- [ ] server/routers.ts audits.reassign: look up getUserByLinkedConsultantId(newSupervisorId) after resolving supervisor name; pass email + displayName to sendAuditStatusEmails
-- [ ] server/email.test.ts: add tests for the new supervisor email branch (with and without linked user account)
-- [ ] Run pnpm test and pnpm check — all pass
+- [x] server/_core/email.ts: extend sendAuditStatusEmails opts to accept newSupervisorEmail + newSupervisorRecipientName
+- [x] server/_core/email.ts: when decision === "reassigned" and newSupervisor provided, build a distinct "newly assigned to you" body and add to recipients (deduped)
+- [x] server/routers.ts audits.reassign: look up getUserByLinkedConsultantId(supervisorId) after resolving supervisor name; pass email + displayName to sendAuditStatusEmails
+- [x] server/email.test.ts: 11 new tests for buildNewSupervisorAssignedEmail and sendAuditStatusEmails new supervisor branch
+- [x] Run pnpm test and pnpm check — all pass (257 tests, 0 TypeScript errors)
 
 ## Tranche A — Prompt 15: Email new supervisor on reassignment
 
@@ -572,3 +572,11 @@
 - [x] server/routers.ts audits.reassign: look up getUserByLinkedConsultantId(supervisorId) after resolving supervisor name; pass email + display name to sendAuditStatusEmails
 - [x] server/email.test.ts: 11 new tests covering buildNewSupervisorAssignedEmail (subject, greeting, body, HTML escaping, plain text) and sendAuditStatusEmails new supervisor branch (sends distinct email, correct subjects, dedup, non-reassignment skip, null email skip)
 - [x] Run pnpm test and pnpm check — all pass (257 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 16: Drop the body-parser limit
+
+- [x] server/_core/index.ts: change express.json({ limit: "50mb" }) to limit: "1mb"
+- [x] server/_core/index.ts: change express.urlencoded({ limit: "50mb" }) to limit: "1mb"
+- [x] Add comment noting that a narrowly-scoped middleware should be introduced for any future large-payload endpoint
+- [x] server/body-limit.test.ts: 4 tests — small payload 200, >1mb JSON 413, 900kb JSON 200, >1mb urlencoded 413
+- [x] Run pnpm test and pnpm check — all pass (261 tests, 0 TypeScript errors)
