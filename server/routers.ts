@@ -75,6 +75,7 @@ import {
   markEmailVerified,
   getConsultantNameById,
   getNextRefCounter,
+  getAuditPublicStatus,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -1132,6 +1133,27 @@ const auditRouter = router({
       });
 
       return comment;
+    }),
+
+  /**
+   * Public (unauthenticated) status lookup by reference number.
+   * Returns ONLY: refNumber, status, decidedAt, category.
+   * Rate-limited separately in index.ts (10/min/IP).
+   */
+  publicStatus: publicProcedure
+    .input(z.object({ ref: z.string().min(1).max(64).trim() }))
+    .query(async ({ input }) => {
+      const audit = await getAuditPublicStatus(input.ref.toUpperCase());
+      if (!audit) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No audit found with that reference number." });
+      }
+      // Return ONLY the safe public fields — never description, emails, or decision notes
+      return {
+        refNumber: audit.refNumber,
+        status: audit.status,
+        decidedAt: audit.decidedAt ?? null,
+        category: audit.category ?? null,
+      };
     }),
 });
 

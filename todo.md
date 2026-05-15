@@ -545,3 +545,14 @@
 - [x] server/auth.password-reset.test.ts already tests hashed lookup path — no change needed
 - [x] server/auth.email-verify.test.ts: 7 new tests covering hash round-trip, expiry, enumeration prevention
 - [x] Run pnpm test and pnpm check — all pass (239 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 14: Public Reference-Number Status Lookup
+
+- [x] server/routers.ts: add audits.publicStatus({ ref }) publicProcedure returning only refNumber, status, decidedAt, category
+- [x] server/_core/index.ts: add rate limiter for audits.publicStatus (10/min/IP)
+- [x] server/db.ts: add getAuditPublicStatus(ref) helper returning safe fields only
+- [x] client/src/pages/StatusLookup.tsx: public /status page with ref input, Check button, status card
+- [x] client/src/App.tsx: /status route outside AppLayout; auth query disabled on /status to prevent redirect loops
+- [x] client/src/pages/Login.tsx: add "Just checking the status of an audit? Look it up here →" link to /status
+- [x] server/public-status.test.ts: 7 tests — safe fields only, sensitive fields absent, NOT_FOUND, unauthenticated access, uppercase normalisation, null decidedAt, empty ref validation
+- [x] Run pnpm test and pnpm check — all pass (246 tests, 0 TypeScript errors)

@@ -198,11 +198,17 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-5 border-t border-border text-center">
+            <div className="mt-6 pt-5 border-t border-border text-center space-y-2">
               <p className="text-sm text-muted-foreground">
                 Don't have an account?{" "}
                 <Link href="/register" className="text-primary font-medium hover:underline">
                   Register
+                </Link>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Just checking the status of an audit?{" "}
+                <Link href="/status" className="text-primary hover:underline">
+                  Look it up here →
                 </Link>
               </p>
             </div>

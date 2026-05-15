@@ -28,15 +28,18 @@ import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import Notifications from "./pages/Notifications";
 import PendingApproval from "./pages/PendingApproval";
+import StatusLookup from "./pages/StatusLookup";
 import { trpc } from "./lib/trpc";
 
 function AppRouter() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
 
   const { data: currentUser, isLoading } = trpc.auth.currentUser.useQuery(
     undefined,
-    { retry: false, staleTime: 0 }
+    // Skip the session query entirely on the public /status page to avoid
+    // unnecessary auth checks and potential redirect loops.
+    { retry: false, staleTime: 0, enabled: location !== "/status" }
   );
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -54,12 +57,17 @@ function AppRouter() {
   useEffect(() => {
     if (!isLoading && !currentUser) {
       // Only redirect if we're not already on an auth page
-      const path = window.location.pathname;
-      if (path !== "/login" && path !== "/register" && path !== "/forgot-password" && path !== "/reset-password" && path !== "/verify-email") {
+      const currentPath = window.location.pathname;
+      if (currentPath !== "/login" && currentPath !== "/register" && currentPath !== "/forgot-password" && currentPath !== "/reset-password" && currentPath !== "/verify-email" && currentPath !== "/status") {
         window.location.href = "/login";
       }
     }
   }, [currentUser, isLoading]);
+
+  // Public route — reachable without authentication
+  if (location === "/status") {
+    return <StatusLookup />;
+  }
 
   if (isLoading) {
     return (

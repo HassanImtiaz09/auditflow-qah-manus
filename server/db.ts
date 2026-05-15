@@ -231,6 +231,26 @@ export async function getAuditByRef(ref: string) {
   return r[0];
 }
 
+/**
+ * Public status lookup — returns ONLY the fields safe to expose without authentication.
+ * No description, emails, decision notes, or submitter info.
+ */
+export async function getAuditPublicStatus(ref: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      refNumber: audits.refNumber,
+      status: audits.status,
+      decidedAt: audits.decidedAt,
+      category: audits.category,
+    })
+    .from(audits)
+    .where(eq(audits.refNumber, ref))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function getAuditsForConsultant(consultantId: number) {
   const db = await getDb();
   if (!db) return [];

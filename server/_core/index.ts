@@ -118,6 +118,8 @@ export const authRateLimiters = {
   register: makeProcedureRateLimiter("auth.register", 5, 60 * 60 * 1000),
   requestPasswordReset: makeProcedureRateLimiter("auth.requestPasswordReset", 5, 60 * 60 * 1000),
   resendVerification: makeProcedureRateLimiter("auth.resendVerification", 5, 60 * 60 * 1000),
+  // Public status lookup — unauthenticated but still rate-limited to prevent scraping
+  publicStatus: makeProcedureRateLimiter("audits.publicStatus", 10, 60 * 1000),
 };
 
 // ─── Port utilities ───────────────────────────────────────────────────────────
@@ -206,6 +208,8 @@ async function startServer() {
   app.use("/api/trpc", authRateLimiters.register);
   app.use("/api/trpc", authRateLimiters.requestPasswordReset);
   app.use("/api/trpc", authRateLimiters.resendVerification);
+  // Public status lookup rate limiter (10/min/IP) — prevents scraping of all ref numbers
+  app.use("/api/trpc", authRateLimiters.publicStatus);
 
   // CSRF check — defence-in-depth on top of SameSite=Lax cookies
   app.use("/api/trpc", csrfProtection);
