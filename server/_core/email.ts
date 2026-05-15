@@ -284,10 +284,45 @@ export function parseCollaborators(raw: string | null | undefined): Collaborator
 }
 
 /**
+ * Build a distinct email for the newly assigned supervisor when an audit is reassigned.
+ * The body emphasises that the audit has been assigned TO them for review.
+ */
+export function buildNewSupervisorAssignedEmail(
+  ctx: { refNumber: string; topic: string; actorName: string },
+  recipientName: string
+): { subject: string; html: string; text: string } {
+  const eRef = escapeHtml(ctx.refNumber);
+  const eTopic = escapeHtml(ctx.topic);
+  const eActorName = escapeHtml(ctx.actorName);
+  const eRecipientName = escapeHtml(recipientName);
+
+  const subject = safeSubject(
+    `[AuditFlow] Audit ${ctx.refNumber} has been assigned to you for review`
+  );
+
+  const auditBox = `
+    <div class="audit-box">
+      <p class="ref">Audit Reference: ${eRef}</p>
+      <p class="title">${eTopic}</p>
+    </div>`;
+
+  const bodyHtml = `
+    <p>Dear ${eRecipientName},</p>
+    <p>An audit has been <span class="badge badge-reassigned">Assigned to You</span> by <strong>${eActorName}</strong> and is now awaiting your review in the Approval Queue.</p>
+    ${auditBox}
+    <p>Please log in to <a href="https://auditqah-436kjx9h.manus.space" style="color:#003366;">AuditFlow QAH</a> to review and make a decision on this audit.</p>`;
+
+  const text = `Dear ${recipientName},\n\nAudit ${ctx.refNumber} ("${ctx.topic}") has been assigned to you for review by ${ctx.actorName}.\n\nPlease log in to AuditFlow QAH to review this audit.`;
+
+  return { subject, html: baseTemplate(subject, bodyHtml), text };
+}
+
+/**
  * Send audit status notification emails to all relevant parties:
  *  - The submitter (if they have an email)
  *  - Each collaborator with a valid email
  *  - The acting consultant/admin (if they have an email and are different from the submitter)
+ *  - The newly assigned supervisor (if provided and decision === "reassigned") — distinct body
  *
  * Failures are logged but never throw — email is best-effort.
  */
@@ -304,8 +339,12 @@ export async function sendAuditStatusEmails(opts: {
   actorEmail?: string | null;
   note?: string | null;
   newSupervisorName?: string | null;
+  /** Email address of the newly assigned supervisor (for reassignment only) */
+  newSupervisorEmail?: string | null;
+  /** Display name of the newly assigned supervisor (for reassignment only) */
+  newSupervisorRecipientName?: string | null;
 }): Promise<void> {
-  const { audit, decision, actorName, actorEmail, note, newSupervisorName } = opts;
+  const { audit, decision, actorName, actorEmail, note, newSupervisorName, newSupervisorEmail, newSupervisorRecipientName } = opts;
 
   const ctx: AuditEmailContext = {
     refNumber: audit.refNumber,
@@ -340,13 +379,31 @@ export async function sendAuditStatusEmails(opts: {
     recipients.push({ name: actorName, email: actorEmail });
   }
 
-  // Send emails concurrently (best-effort)
-  await Promise.allSettled(
-    recipients.map(async (r) => {
-      const { subject, html, text } = buildAuditStatusEmail(ctx, r.name);
-      await sendEmail({ to: r.email, subject, html, text });
-    })
-  );
+  // Send general status emails concurrently (best-effort)
+  const generalSends = recipients.map(async (r) => {
+    const { subject, html, text } = buildAuditStatusEmail(ctx, r.name);
+    await sendEmail({ to: r.email, subject, html, text });
+  });
+
+  // 4. Newly assigned supervisor — distinct "assigned to you" email (reassignment only)
+  const supervisorSend: Promise<void>[] = [];
+  if (
+    decision === "reassigned" &&
+    newSupervisorEmail &&
+    // Dedupe: don't send the supervisor email if they're already in the general recipients list
+    !recipients.find(r => r.email === newSupervisorEmail)
+  ) {
+    const displayName = newSupervisorRecipientName || newSupervisorName || "Consultant";
+    const { subject, html, text } = buildNewSupervisorAssignedEmail(
+      { refNumber: ctx.refNumber, topic: ctx.topic, actorName: ctx.actorName },
+      displayName
+    );
+    supervisorSend.push(
+      sendEmail({ to: newSupervisorEmail, subject, html, text }).then(() => {})
+    );
+  }
+
+  await Promise.allSettled([...generalSends, ...supervisorSend]);
 }
 
 // ─── Email Verification ───────────────────────────────────────────────────────

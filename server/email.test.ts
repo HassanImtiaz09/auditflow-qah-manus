@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   parseCollaborators,
   buildAuditStatusEmail,
+  buildNewSupervisorAssignedEmail,
   sendAuditStatusEmails,
   sendEmail,
 } from "./_core/email";
@@ -237,6 +238,142 @@ describe("sendAuditStatusEmails", () => {
     // (The transporter won't be created without smtpHost)
     // This is tested indirectly via the module-level mock
     expect(true).toBe(true); // placeholder — SMTP skip is tested via sendEmail unit below
+  });
+});
+
+// ─── buildNewSupervisorAssignedEmail ─────────────────────────────────────────
+
+describe("buildNewSupervisorAssignedEmail", () => {
+  const ctx = {
+    refNumber: "REF-20260101-0001",
+    topic: "ENT Audit Test",
+    actorName: "Mr. Costa Repanos",
+  };
+
+  it("generates subject with 'assigned to you for review'", () => {
+    const { subject } = buildNewSupervisorAssignedEmail(ctx, "Mr. John Smith");
+    expect(subject).toContain("assigned to you for review");
+    expect(subject).toContain("REF-20260101-0001");
+  });
+
+  it("includes recipient name in greeting", () => {
+    const { html } = buildNewSupervisorAssignedEmail(ctx, "Mr. John Smith");
+    expect(html).toContain("Dear Mr. John Smith");
+  });
+
+  it("includes audit reference and topic in body", () => {
+    const { html } = buildNewSupervisorAssignedEmail(ctx, "Mr. John Smith");
+    expect(html).toContain("REF-20260101-0001");
+    expect(html).toContain("ENT Audit Test");
+  });
+
+  it("includes actor name in body", () => {
+    const { html } = buildNewSupervisorAssignedEmail(ctx, "Mr. John Smith");
+    expect(html).toContain("Mr. Costa Repanos");
+  });
+
+  it("escapes HTML in supervisor name", () => {
+    const { html } = buildNewSupervisorAssignedEmail(ctx, '<script>alert(1)</script>');
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("plain text contains key info", () => {
+    const { text } = buildNewSupervisorAssignedEmail(ctx, "Mr. John Smith");
+    expect(text).toContain("REF-20260101-0001");
+    expect(text).toContain("Mr. John Smith");
+    expect(text).toContain("Mr. Costa Repanos");
+  });
+});
+
+describe("sendAuditStatusEmails — new supervisor branch", () => {
+  const mockAudit = {
+    refNumber: "REF-20260101-0001",
+    topic: "ENT Audit Test",
+    submitterName: "Dr. Jane Doe",
+    submitterEmail: "jane.doe@nhs.uk",
+    collaborators: null,
+  };
+
+  beforeEach(() => {
+    mockSendMail.mockClear();
+  });
+
+  it("sends distinct supervisor email when newSupervisorEmail provided and not in general list", async () => {
+    await sendAuditStatusEmails({
+      audit: mockAudit,
+      decision: "reassigned",
+      actorName: "Admin User",
+      actorEmail: null,
+      newSupervisorName: "Mr. John Smith",
+      newSupervisorEmail: "john.smith@nhs.uk",
+      newSupervisorRecipientName: "Mr. John Smith",
+    });
+    // submitter + supervisor = 2 emails
+    expect(mockSendMail).toHaveBeenCalledTimes(2);
+    const recipients = mockSendMail.mock.calls.map((c: [{ to: string }]) => c[0].to);
+    expect(recipients).toContain("jane.doe@nhs.uk");
+    expect(recipients).toContain("john.smith@nhs.uk");
+  });
+
+  it("supervisor email has 'assigned to you' subject, general email has 'reassigned' subject", async () => {
+    await sendAuditStatusEmails({
+      audit: mockAudit,
+      decision: "reassigned",
+      actorName: "Admin User",
+      actorEmail: null,
+      newSupervisorName: "Mr. John Smith",
+      newSupervisorEmail: "john.smith@nhs.uk",
+      newSupervisorRecipientName: "Mr. John Smith",
+    });
+    const calls = mockSendMail.mock.calls as [{ to: string; subject: string }][];
+    const supervisorCall = calls.find(c => c[0].to === "john.smith@nhs.uk");
+    const submitterCall = calls.find(c => c[0].to === "jane.doe@nhs.uk");
+    expect(supervisorCall?.[0].subject).toContain("assigned to you for review");
+    expect(submitterCall?.[0].subject).toContain("reassigned");
+  });
+
+  it("does not send duplicate supervisor email when supervisor is already in general recipients", async () => {
+    // Supervisor email matches submitter email — should only send 1 email total
+    await sendAuditStatusEmails({
+      audit: { ...mockAudit, submitterEmail: "john.smith@nhs.uk", submitterName: "Mr. John Smith" },
+      decision: "reassigned",
+      actorName: "Admin User",
+      actorEmail: null,
+      newSupervisorName: "Mr. John Smith",
+      newSupervisorEmail: "john.smith@nhs.uk",
+      newSupervisorRecipientName: "Mr. John Smith",
+    });
+    // Only 1 email — supervisor is already submitter, no duplicate
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send supervisor email when decision is not reassigned", async () => {
+    await sendAuditStatusEmails({
+      audit: mockAudit,
+      decision: "approved",
+      actorName: "Admin User",
+      actorEmail: null,
+      newSupervisorEmail: "john.smith@nhs.uk",
+      newSupervisorRecipientName: "Mr. John Smith",
+    });
+    // Only submitter email — supervisor email not sent for non-reassignment
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+    const recipients = mockSendMail.mock.calls.map((c: [{ to: string }]) => c[0].to);
+    expect(recipients).not.toContain("john.smith@nhs.uk");
+  });
+
+  it("does not send supervisor email when newSupervisorEmail is null", async () => {
+    await sendAuditStatusEmails({
+      audit: mockAudit,
+      decision: "reassigned",
+      actorName: "Admin User",
+      actorEmail: null,
+      newSupervisorName: "Mr. John Smith",
+      newSupervisorEmail: null,
+    });
+    // Only submitter email
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
 });
 

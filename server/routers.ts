@@ -941,15 +941,27 @@ const auditRouter = router({
           });
         }
       }
-      // Send email notifications to submitter, collaborators, and admin
+      // Send email notifications to submitter, collaborators, admin, and the newly assigned supervisor
       if (auditForReassign) {
         const actorName = user.fullName ?? user.name ?? "An administrator";
+        // Look up the linked user account for the new supervisor to get their email
+        let newSupervisorEmail: string | null = null;
+        let newSupervisorRecipientName: string | null = null;
+        if (input.supervisorId !== null) {
+          const supUser = await getUserByLinkedConsultantId(input.supervisorId);
+          if (supUser?.email) {
+            newSupervisorEmail = supUser.email;
+            newSupervisorRecipientName = supUser.fullName ?? supUser.name ?? supervisorName;
+          }
+        }
         await sendAuditStatusEmails({
           audit: auditForReassign,
           decision: "reassigned",
           actorName,
           actorEmail: user.email ?? null,
           newSupervisorName: supervisorName,
+          newSupervisorEmail,
+          newSupervisorRecipientName,
         });
       }
       return { success: true };
