@@ -1,0 +1,5 @@
+ALTER TABLE `auditEvents` MODIFY COLUMN `eventType` enum('submitted','approved','rejected','changes_requested','resubmitted','reassigned','archived','unarchived','draft_saved','comment','deleted','restored','reaudit_started') NOT NULL;--> statement-breakpoint
+ALTER TABLE `audits` MODIFY COLUMN `status` enum('draft','pending','approved','rejected','changes_requested') NOT NULL DEFAULT 'draft';--> statement-breakpoint
+ALTER TABLE `notifications` MODIFY COLUMN `type` enum('consultant_registered','audit_submitted','audit_assigned','audit_reassigned','audit_approved','audit_rejected','audit_changes_requested','audit_resubmitted','account_approved') NOT NULL;--> statement-breakpoint
+ALTER TABLE `audits` ADD `deletedAt` timestamp;--> statement-breakpoint
+ALTER TABLE `audits` ADD `reauditReminderSentAt` timestamp;

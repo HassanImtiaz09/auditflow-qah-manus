@@ -3,27 +3,41 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, Clock, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { Search, Clock, CheckCircle2, XCircle, FileText, AlertTriangle, RefreshCw } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
 import PriorityBadge from "@/components/shared/PriorityBadge";
 import CommentThread from "@/components/shared/CommentThread";
 import { format } from "date-fns";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 export default function CheckStatus() {
   const [refInput, setRefInput] = useState("");
   const [searchRef, setSearchRef] = useState<string | null>(null);
   const { data: currentUser } = trpc.auth.currentUser.useQuery();
+  const utils = trpc.useUtils();
   const { data: audit, isLoading, error } = trpc.audits.byRef.useQuery(
     { ref: searchRef! },
     { enabled: !!searchRef }
   );
+
+  const resubmitMutation = trpc.audits.resubmit.useMutation({
+    onSuccess: () => {
+      toast.success("Audit resubmitted for review.");
+      utils.audits.byRef.invalidate({ ref: searchRef! });
+      utils.audits.mySubmissions.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const handleSearch = () => {
     const trimmed = refInput.trim().toUpperCase();
     if (!trimmed) return;
     setSearchRef(trimmed);
   };
+
+  // Only the original submitter can resubmit
+  const canResubmit = audit && currentUser && audit.submittedById === currentUser.id;
 
   return (
     <div className="p-6 max-w-2xl">
@@ -142,6 +156,37 @@ export default function CheckStatus() {
                   <p className="text-xs text-red-700 mt-0.5">{audit.decisionNote}</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Changes requested — show note and resubmit button */}
+          {audit.status === "changes_requested" && (
+            <div className="mx-5 mb-5 bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-orange-800 font-semibold">Changes Requested</p>
+                  {audit.decisionNote && (
+                    <p className="text-xs text-orange-700 mt-0.5 leading-relaxed">{audit.decisionNote}</p>
+                  )}
+                  {!audit.decisionNote && (
+                    <p className="text-xs text-orange-700 mt-0.5">
+                      Your consultant has requested changes. Please review the comments below and resubmit when ready.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {canResubmit && (
+                <Button
+                  onClick={() => resubmitMutation.mutate({ auditId: audit.id })}
+                  disabled={resubmitMutation.isPending}
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-2" />
+                  Resubmit for Review
+                </Button>
+              )}
             </div>
           )}
 

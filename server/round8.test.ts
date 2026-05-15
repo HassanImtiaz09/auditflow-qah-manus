@@ -13,7 +13,7 @@ vi.mock("./db", () => ({
   createAuditComment: vi.fn(),
   createAudit: vi.fn(),
   updateAudit: vi.fn(),
-  deleteAudit: vi.fn(),
+  softDeleteAudit: vi.fn(),
   getAuditById: vi.fn(),
   getMyDraftAudits: vi.fn(),
   getApprovedConsultants: vi.fn(),

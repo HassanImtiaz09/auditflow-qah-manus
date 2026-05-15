@@ -57,7 +57,7 @@ vi.mock("./db", () => ({
   updateLinkedConsultant: vi.fn(),
   addConsultantName: vi.fn(),
   updateAudit: vi.fn(),
-  deleteAudit: vi.fn(),
+  softDeleteAudit: vi.fn(),
   updateUserProfile: vi.fn(),
   updateUserPassword: vi.fn(),
   createPasswordResetToken: vi.fn(),

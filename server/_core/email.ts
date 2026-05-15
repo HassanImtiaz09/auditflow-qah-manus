@@ -127,7 +127,7 @@ interface AuditEmailContext {
   topic: string;
   submitterName: string;
   actorName: string;
-  decision: "approved" | "rejected" | "reassigned" | "archived" | "unarchived";
+  decision: "approved" | "rejected" | "changes_requested" | "reassigned" | "archived" | "unarchived";
   note?: string | null;
   newSupervisorName?: string | null;
 }
@@ -157,6 +157,7 @@ function baseTemplate(title: string, bodyHtml: string): string {
   .badge-reassigned { background:#ede9fe; color:#5b21b6; }
   .badge-archived { background:#f3f4f6; color:#374151; }
   .badge-unarchived { background:#f3f4f6; color:#374151; }
+  .badge-changes_requested { background:#ffedd5; color:#9a3412; }
   .note-box { background:#fffbeb; border:1px solid #fcd34d; border-radius:4px; padding:12px 16px; margin:14px 0; font-size:13px; color:#92400e; }
   .footer { padding:16px 32px; background:#f9fafb; border-top:1px solid #e5e7eb; font-size:11px; color:#9ca3af; }
 </style>
@@ -196,10 +197,11 @@ export function buildAuditStatusEmail(
 
   const badgeClass = `badge badge-${decision}`;
   const decisionLabel =
-    decision === "approved"    ? "Approved"
-    : decision === "rejected"  ? "Rejected"
-    : decision === "reassigned" ? "Reassigned"
-    : decision === "archived"  ? "Archived"
+    decision === "approved"          ? "Approved"
+    : decision === "rejected"        ? "Rejected"
+    : decision === "changes_requested" ? "Changes Requested"
+    : decision === "reassigned"      ? "Reassigned"
+    : decision === "archived"        ? "Archived"
     : "Restored";
 
   const auditBox = `
@@ -224,6 +226,13 @@ export function buildAuditStatusEmail(
       <p>Your audit registration has been <span class="${badgeClass}">${decisionLabel}</span> by <strong>${eActorName}</strong>.</p>
       ${auditBox}`;
     plainText = `Your audit ${refNumber} ("${topic}") has been rejected by ${actorName}.`;
+  } else if (decision === "changes_requested") {
+    subject = safeSubject(`[AuditFlow] Audit ${refNumber} — changes requested`);
+    bodyHtml += `
+      <p>Your audit registration has been reviewed and <span class="${badgeClass}">${decisionLabel}</span> by <strong>${eActorName}</strong>.</p>
+      ${auditBox}
+      <p>Please review the feedback below, make the necessary changes, and resubmit your audit for approval.</p>`;
+    plainText = `Your audit ${refNumber} ("${topic}") has been returned with changes requested by ${actorName}.`;
   } else if (decision === "reassigned") {
     subject = safeSubject(`[AuditFlow] Audit ${refNumber} has been reassigned`);
     const supText = newSupervisorName
@@ -667,5 +676,48 @@ export async function sendDeadlineReminderEmail(
     subject,
     html: baseTemplate(subject, bodyHtml),
     text: `Dear ${recipientName},\n\nThis is a reminder that the audit "${topic}" (${refNumber}) is due ${urgency} on ${auditEndDate.toLocaleDateString("en-GB")}.\n\nPlease ensure all data collection is complete before the deadline.\n\nAuditFlow QAH`,
+  });
+}
+
+/**
+ * Send a re-audit due-date reminder email.
+ * Called by the deadlineRemindersHandler when an approved audit's re-audit
+ * window (decidedAt + 6 or 12 months) is within 30 days.
+ */
+export function sendReauditReminderEmail(opts: {
+  to: string;
+  recipientName: string;
+  refNumber: string;
+  topic: string;
+  daysRemaining: number;
+  reauditDueDate: Date;
+}): Promise<boolean> {
+  const { to, recipientName, refNumber, topic, daysRemaining: daysLeft, reauditDueDate } = opts;
+  const eRecipientName = escapeHtml(recipientName);
+  const eRefNumber = escapeHtml(refNumber);
+  const eTopic = escapeHtml(topic);
+  const eDaysLeft = escapeHtml(String(daysLeft));
+  const eDueDate = escapeHtml(
+    reauditDueDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+  );
+  const urgency = daysLeft <= 1 ? "tomorrow" : `in ${eDaysLeft} days`;
+  const bodyHtml = `
+    <p>Dear ${eRecipientName},</p>
+    <p>This is a reminder that a <strong>re-audit</strong> is due for the following completed audit.</p>
+    <div class="audit-box">
+      <p class="ref">${eRefNumber}</p>
+      <p class="title">${eTopic}</p>
+    </div>
+    <p><strong>Re-audit due date:</strong> ${eDueDate} (${urgency})</p>
+    <p>Please begin planning and data collection for the re-audit. Log in to AuditFlow QAH to start a new linked audit submission.</p>
+    <p style="font-size:12px;color:#6b7280;">You are receiving this message because you are listed as a submitter or collaborator on the original audit.</p>`;
+  const subject = safeSubject(
+    `[AuditFlow] Re-audit reminder: "${topic}" re-audit due ${urgency} — ${refNumber}`
+  );
+  return sendEmail({
+    to,
+    subject,
+    html: baseTemplate(subject, bodyHtml),
+    text: `Dear ${recipientName},\n\nThis is a reminder that a re-audit is due for "${topic}" (${refNumber}) on ${reauditDueDate.toLocaleDateString("en-GB")}.\n\nPlease log in to AuditFlow QAH to start a new linked audit submission.\n\nAuditFlow QAH`,
   });
 }

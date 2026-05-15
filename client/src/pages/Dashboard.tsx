@@ -118,6 +118,15 @@ function ClinicianDashboard({ firstName }: { firstName: string }) {
   const pending = submitted.filter((a) => a.status === "pending").length;
   const approved = submitted.filter((a) => a.status === "approved").length;
   const rejected = submitted.filter((a) => a.status === "rejected").length;
+  const changesRequested = submitted.filter((a) => a.status === "changes_requested").length;
+
+  // Upcoming deadlines: own submissions with auditEndDate within 30 days
+  const nowMs = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  const upcomingDeadlines = submitted
+    .filter((a) => a.auditEndDate && new Date(a.auditEndDate).getTime() - nowMs > 0 && new Date(a.auditEndDate).getTime() - nowMs <= thirtyDaysMs)
+    .sort((a, b) => new Date(a.auditEndDate!).getTime() - new Date(b.auditEndDate!).getTime())
+    .slice(0, 5);
   const recent = [...submitted]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
@@ -167,6 +176,9 @@ function ClinicianDashboard({ firstName }: { firstName: string }) {
         <StatCard label="Awaiting Review" value={pending} icon={<Clock className="w-5 h-5 text-amber-600" />} colour="bg-amber-50" onClick={() => navigate("/check-status")} />
         <StatCard label="Approved" value={approved} icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} colour="bg-emerald-50" onClick={() => navigate("/check-status")} />
         <StatCard label="Rejected" value={rejected} icon={<XCircle className="w-5 h-5 text-red-500" />} colour="bg-red-50" onClick={() => navigate("/check-status")} />
+        {changesRequested > 0 && (
+          <StatCard label="Changes Requested" value={changesRequested} icon={<AlertTriangle className="w-5 h-5 text-orange-500" />} colour="bg-orange-50" onClick={() => navigate("/check-status")} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
@@ -197,7 +209,7 @@ function ClinicianDashboard({ firstName }: { firstName: string }) {
                     <p className="text-sm font-medium text-foreground truncate">{a.topic || a.category}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{a.refNumber} · {formatDistanceToNow(new Date(a.createdAt), { addSuffix: true })}</p>
                   </div>
-                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected"} />
+                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected" | "changes_requested"} />
                 </li>
               ))}
             </ul>
@@ -247,6 +259,35 @@ function ClinicianDashboard({ firstName }: { firstName: string }) {
           )}
         </div>
       </div>
+
+      {/* Upcoming Deadlines */}
+      {upcomingDeadlines.length > 0 && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-5">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-semibold">Upcoming Deadlines</span>
+              <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none border border-orange-200">{upcomingDeadlines.length}</span>
+            </div>
+          </div>
+          <ul className="divide-y divide-border">
+            {upcomingDeadlines.map((a) => {
+              const daysLeft = Math.ceil((new Date(a.auditEndDate!).getTime() - nowMs) / (24 * 60 * 60 * 1000));
+              return (
+                <li key={a.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => navigate(`/check-status?ref=${a.refNumber}`)}>
+                  <div className="min-w-0 flex-1 mr-3">
+                    <p className="text-sm font-medium text-foreground truncate">{a.topic || a.category}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{a.refNumber} · Due {format(new Date(a.auditEndDate!), "dd MMM yyyy")}</p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    daysLeft <= 3 ? "bg-red-100 text-red-700" : daysLeft <= 7 ? "bg-orange-100 text-orange-700" : "bg-amber-50 text-amber-700"
+                  }`}>{daysLeft}d left</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* Drafts */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -319,11 +360,13 @@ function ConsultantDashboard({ firstName }: { firstName: string }) {
   const pendingCount = queue?.pending.length ?? 0;
   const approvedCount = queue?.approved.length ?? 0;
   const rejectedCount = queue?.rejected.length ?? 0;
+  const changesRequestedCount = (queue as any)?.changes_requested?.length ?? 0;
 
-  // Combine all for "recent decisions" (approved + rejected, newest first)
+  // Combine all for "recent decisions" (approved + rejected + changes_requested, newest first)
   const recentDecisions = [
     ...(queue?.approved ?? []),
     ...(queue?.rejected ?? []),
+    ...((queue as any)?.changes_requested ?? []),
   ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
@@ -368,6 +411,15 @@ function ConsultantDashboard({ firstName }: { firstName: string }) {
           colour="bg-red-50"
           onClick={() => navigate("/approval-queue?status=rejected")}
         />
+        {changesRequestedCount > 0 && (
+          <StatCard
+            label="Changes Requested"
+            value={changesRequestedCount}
+            icon={<AlertTriangle className="w-5 h-5 text-orange-500" />}
+            colour="bg-orange-50"
+            onClick={() => navigate("/approval-queue?status=changes_requested")}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
@@ -438,7 +490,7 @@ function ConsultantDashboard({ firstName }: { firstName: string }) {
                     <p className="text-sm font-medium text-foreground truncate">{a.topic || a.category}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{a.refNumber} · {a.submitterName ?? "Unknown"}</p>
                   </div>
-                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected"} />
+                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected" | "changes_requested"} />
                 </li>
               ))}
             </ul>
@@ -696,7 +748,7 @@ function AdminDashboard({ firstName }: { firstName: string }) {
                       {a.refNumber} · {a.submitterName ?? "Unknown"} · {a.submittedAt ? formatDistanceToNow(new Date(a.submittedAt), { addSuffix: true }) : ""}
                     </p>
                   </div>
-                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected"} />
+                  <StatusBadge status={a.status as "draft" | "pending" | "approved" | "rejected" | "changes_requested"} />
                 </li>
               ))}
             </ul>

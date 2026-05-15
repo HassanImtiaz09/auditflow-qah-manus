@@ -51,13 +51,14 @@ export const REAUDIT_OPTIONS = [
 export const ROLES = ["clinician", "consultant", "admin"] as const;
 export type Role = typeof ROLES[number];
 
-export type AuditStatus = "draft" | "pending" | "approved" | "rejected";
+export type AuditStatus = "draft" | "pending" | "approved" | "rejected" | "changes_requested";
 
 export const STATUS_COLORS: Record<AuditStatus, { bg: string; text: string; border: string }> = {
-  draft:    { bg: "bg-slate-100",   text: "text-slate-600",   border: "border-slate-200" },
-  pending:  { bg: "bg-amber-100",   text: "text-amber-800",   border: "border-amber-200" },
-  approved: { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
-  rejected: { bg: "bg-red-100",     text: "text-red-800",     border: "border-red-200" },
+  draft:             { bg: "bg-slate-100",   text: "text-slate-600",   border: "border-slate-200" },
+  pending:           { bg: "bg-amber-100",   text: "text-amber-800",   border: "border-amber-200" },
+  approved:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
+  rejected:          { bg: "bg-red-100",     text: "text-red-800",     border: "border-red-200" },
+  changes_requested: { bg: "bg-orange-100",  text: "text-orange-800",  border: "border-orange-200" },
 };
 
 export const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {

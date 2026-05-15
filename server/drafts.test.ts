@@ -11,7 +11,7 @@ import { appRouter } from "./routers";
 vi.mock("./db", () => ({
   getAuditById: vi.fn(),
   updateAudit: vi.fn(),
-  deleteAudit: vi.fn(),
+  softDeleteAudit: vi.fn(),
   getMyAudits: vi.fn(),
   getMyDraftAudits: vi.fn(),
   getAllAudits: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("./db", () => ({
 import {
   getAuditById,
   updateAudit,
-  deleteAudit,
+  softDeleteAudit,
   getUserById,
   getAdminUsers,
   createAuditEvent,
@@ -179,12 +179,12 @@ describe("audits.deleteDraft", () => {
 
   it("deletes a draft owned by the current user", async () => {
     vi.mocked(getAuditById).mockResolvedValue(MOCK_DRAFT as any);
-    vi.mocked(deleteAudit).mockResolvedValue(undefined);
+    vi.mocked(softDeleteAudit).mockResolvedValue(undefined);
 
     const caller = appRouter.createCaller(makeCtx(OWNER_ID) as any);
     const result = await caller.audits.deleteDraft({ auditId: 1 });
     expect(result.success).toBe(true);
-    expect(deleteAudit).toHaveBeenCalledWith(1);
+    expect(softDeleteAudit).toHaveBeenCalledWith(1);
   });
 
   it("throws FORBIDDEN when non-owner tries to delete", async () => {

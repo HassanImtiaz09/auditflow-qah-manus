@@ -28,7 +28,7 @@ vi.mock("./db", () => ({
   getAuditByRef: vi.fn(),
   createAudit: vi.fn(),
   updateAudit: vi.fn(),
-  deleteAudit: vi.fn(),
+  softDeleteAudit: vi.fn(),
   getAuditsForConsultant: vi.fn(),
   getAuditsForConsultantAll: vi.fn(),
   getMyAudits: vi.fn(),

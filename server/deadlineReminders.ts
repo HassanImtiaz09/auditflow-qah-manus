@@ -35,11 +35,14 @@
 import type { Request, Response } from "express";
 import {
   getAuditsForDeadlineReminder,
+  getAuditsForReauditReminder,
+  markReauditReminderSent,
   updateAuditReminderSent,
   createNotification,
   getUserById,
 } from "./db";
-import { sendDeadlineReminderEmail } from "./_core/email";
+import { sendDeadlineReminderEmail, sendReauditReminderEmail } from "./_core/email";
+import { logger } from "./_core/logger";
 
 /** Half-day tolerance window in milliseconds (12 hours). */
 const HALF_DAY_MS = 12 * 60 * 60 * 1000;
@@ -137,10 +140,90 @@ export async function deadlineRemindersHandler(
     }
   }
 
+  // ── Re-audit reminders (Prompt 27) ──────────────────────────────────────────
+  // For each approved audit with reAuditTimeline set, compute the re-audit due
+  // date (decidedAt + 6 or 12 months) and send a reminder when within 30 days.
+  let reauditSent = 0;
+  let reauditEligible: Awaited<ReturnType<typeof getAuditsForReauditReminder>>;
+  try {
+    reauditEligible = await getAuditsForReauditReminder();
+  } catch (err) {
+    logger.warn({ err }, "[ReauditReminder] Failed to fetch eligible audits");
+    reauditEligible = [];
+  }
+
+  for (const audit of reauditEligible) {
+    if (!audit.decidedAt || !audit.reAuditTimeline) continue;
+    const monthsAhead = audit.reAuditTimeline === "6months" ? 6 : 12;
+    const dueDate = new Date(audit.decidedAt);
+    dueDate.setMonth(dueDate.getMonth() + monthsAhead);
+    const daysLeft = daysRemaining(now, dueDate);
+    // Send reminder when within 30 days of re-audit due date
+    if (daysLeft > 0 && daysLeft <= 30) {
+      await sendReauditReminders(audit, Math.round(daysLeft), dueDate);
+      reauditSent++;
+    }
+  }
+
   res.json({
     processed: audits.length,
-    sent: { sevenDay: sevenDaySent, oneDay: oneDaySent },
+    sent: { sevenDay: sevenDaySent, oneDay: oneDaySent, reaudit: reauditSent },
   });
+}
+
+/**
+ * Send re-audit reminder emails + in-app notification and mark the audit.
+ */
+async function sendReauditReminders(
+  audit: Awaited<ReturnType<typeof getAuditsForReauditReminder>>[number],
+  daysLeft: number,
+  dueDate: Date
+): Promise<void> {
+  const collaborators = parseCollaborators(audit.collaborators ?? null);
+  const recipients: Array<{ name: string; email: string }> = [];
+
+  if (audit.submitterEmail) {
+    recipients.push({ name: audit.submitterName ?? "Clinician", email: audit.submitterEmail });
+  }
+  for (const c of collaborators) {
+    if (!recipients.some((r) => r.email === c.email)) {
+      recipients.push({ name: c.name ?? c.email, email: c.email });
+    }
+  }
+
+  for (const recipient of recipients) {
+    try {
+      await sendReauditReminderEmail({
+        to: recipient.email,
+        recipientName: recipient.name,
+        refNumber: audit.refNumber ?? "",
+        topic: audit.topic ?? "Untitled Audit",
+        daysRemaining: daysLeft,
+        reauditDueDate: dueDate,
+      });
+    } catch (err) {
+      logger.warn({ err, auditId: audit.id, recipient: recipient.email }, "[ReauditReminder] Failed to send email");
+    }
+  }
+
+  if (audit.submittedById) {
+    try {
+      await createNotification({
+        recipientId: audit.submittedById,
+        userId: audit.submittedById,
+        type: "audit_submitted",
+        message: `Re-audit reminder: "${audit.topic ?? "Audit"}" (${audit.refNumber}) is due for re-audit in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+      });
+    } catch (err) {
+      logger.warn({ err, auditId: audit.id }, "[ReauditReminder] Failed to create notification");
+    }
+  }
+
+  try {
+    await markReauditReminderSent(audit.id);
+  } catch (err) {
+    logger.warn({ err, auditId: audit.id }, "[ReauditReminder] Failed to mark reminder sent");
+  }
 }
 
 /**
@@ -182,10 +265,7 @@ async function sendReminders(
         auditEndDate: audit.auditEndDate!,
       });
     } catch (err) {
-      console.warn(
-        `[DeadlineReminder] Failed to send email to ${recipient.email} for audit ${audit.id}:`,
-        err
-      );
+      logger.warn({ err, auditId: audit.id, recipient: recipient.email }, "[DeadlineReminder] Failed to send email");
     }
   }
 
@@ -203,10 +283,7 @@ async function sendReminders(
         });
       }
     } catch (err) {
-      console.warn(
-        `[DeadlineReminder] Failed to create notification for audit ${audit.id}:`,
-        err
-      );
+      logger.warn({ err, auditId: audit.id }, "[DeadlineReminder] Failed to create notification");
     }
   }
 
@@ -214,9 +291,6 @@ async function sendReminders(
   try {
     await updateAuditReminderSent(audit.id, field);
   } catch (err) {
-    console.warn(
-      `[DeadlineReminder] Failed to update ${field} for audit ${audit.id}:`,
-      err
-    );
+    logger.warn({ err, auditId: audit.id, field }, "[DeadlineReminder] Failed to update reminder sent flag");
   }
 }

@@ -629,3 +629,51 @@
 - [ ] Add vitest setup file server/integration/setup.ts that boots MySQL and runs migrations
 - [ ] Write server/integration/supervisor-scoping.int.test.ts with 4 assertions
 - [ ] Update vitest.config.ts to include server/integration/*.int.test.ts as separate suite
+
+## Tranche B — Prompts 23-27
+
+### Prompt 23 — Role-tailored dashboards
+- [x] P23: ClinicianDashboard — add "upcoming deadlines" query (audits.mySubmissions filtered for auditEndDate within 30 days)
+- [x] P23: ConsultantDashboard — add "decided this month" count + list
+- [x] P23: ConsultantDashboard — add "approaching deadlines for my audits" section
+- [x] P23: ConsultantDashboard — add "recent comments awaiting my response" section
+- [x] P23: AdminDashboard — surface pending user approvals count + CTA
+- [x] P23: Add tRPC procedures for any missing queries (mySubmissions, consultantDecidedThisMonth, consultantApproachingDeadlines, commentsAwaitingResponse)
+- [x] P23: Each dashboard card links to relevant detail page
+
+### Prompt 24 — changes_requested decision
+- [x] P24: Schema — add "changes_requested" to audits.status enum, migration
+- [x] P24: Schema — add "changes_requested" and "resubmitted" to auditEvents.eventType enum, migration
+- [x] P24: routers.ts audits.decide — accept "changes_requested", write trail event, email + notification to submitter
+- [x] P24: routers.ts — add audits.resubmit mutation (draft state restore + resubmit → pending)
+- [x] P24: Frontend — "Edit and resubmit" button on changes_requested audits
+- [x] P24: StatusBadge — handle changes_requested status
+- [x] P24: Consultant approval-queue UI — handle changes_requested status
+- [x] P24: Tests for changes_requested and resubmitted transitions
+
+### Prompt 25 — Consultant roster management UI
+- [x] P25: Add tRPC procedures: consultantNames.list, .add, .update, .deactivate
+- [x] P25: Add users.updateLinkedConsultant procedure
+- [x] P25: Admin page at /admin/roster — list all consultantNames (active + inactive)
+- [x] P25: Add/edit/deactivate consultant roster entries
+- [x] P25: Show linked user account per roster entry (join via users.linkedConsultantId)
+- [x] P25: "Link to user" button with email-search picker
+- [x] P25: Verify Submit Audit dropdown only shows active consultantNames entries
+
+### Prompt 26 — Soft-delete audits
+- [x] P26: Schema — add deletedAt timestamp null to audits table, migration
+- [x] P26: Schema — add "deleted" and "restored" to auditEvents.eventType enum, migration
+- [x] P26: server/db.ts — replace deleteAudit with softDeleteAudit (sets deletedAt, writes trail event)
+- [x] P26: Filter deletedAt IS NULL in: getAllAudits, getMyAudits, getMyDraftAudits, getAuditsForConsultant*, getApproachingDeadlines
+- [x] P26: Add admin-only audits.restore({ id }) mutation
+- [x] P26: Update audits.deleteDraft to soft-delete
+- [x] P26: Tests for soft-delete and restore
+
+### Prompt 27 — Re-audit timeline reminders
+- [x] P27: Compute reAuditDueAt virtual field (decidedAt + 6/12 months) in audit response helpers
+- [x] P27: Add reauditReminderSentAt column to audits table, migration
+- [x] P27: Extend deadline-reminder cron to send re-audit reminder 30 days before reAuditDueAt
+- [x] P27: Surface "Audits due for re-audit" in ClinicianDashboard (submitter's own)
+- [x] P27: Surface "Audits due for re-audit" in AdminDashboard (system-wide)
+- [x] P27: "Start re-audit" button prefills new submission with linkedAuditId set to parent
+- [x] P27: Parent audit trail gets "child_reaudit_submitted" event on re-audit submission

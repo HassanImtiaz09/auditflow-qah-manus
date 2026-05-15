@@ -142,6 +142,38 @@ export async function addConsultantName(data: Omit<InsertConsultantName, 'create
   return rows[0];
 }
 
+/** Returns ALL consultantNames entries (active and inactive) for admin roster UI */
+export async function getAllConsultantNames() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(consultantNames).orderBy(consultantNames.fullName);
+}
+
+/** Update a consultantNames entry (title, fullName, grade) */
+export async function updateConsultantName(
+  id: number,
+  data: { title?: string | null; fullName?: string; grade?: string | null }
+) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.update(consultantNames).set(data).where(eq(consultantNames.id, id));
+  return getConsultantNameById(id);
+}
+
+/** Soft-delete a consultantNames entry by setting active = false */
+export async function deactivateConsultantName(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.update(consultantNames).set({ active: false }).where(eq(consultantNames.id, id));
+}
+
+/** Re-activate a previously deactivated consultantNames entry */
+export async function reactivateConsultantName(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.update(consultantNames).set({ active: true }).where(eq(consultantNames.id, id));
+}
+
 export async function getPendingUsers() {
   const db = await getDb();
   if (!db) return [];
@@ -169,7 +201,11 @@ export async function getAuditsForConsultantAll(consultantId: number) {
   return db
     .select()
     .from(audits)
-    .where(and(eq(audits.supervisorId, consultantId), ne(audits.status, "draft")))
+    .where(and(
+      eq(audits.supervisorId, consultantId),
+      ne(audits.status, "draft"),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
     .orderBy(desc(audits.createdAt));
 }
 
@@ -216,12 +252,22 @@ export async function updateLinkedConsultant(userId: number, linkedConsultantId:
 export async function getAllAudits() {
   const db = await getDb();
   if (!db) return [];
+  return db.select().from(audits)
+    .where(sql`${audits.deletedAt} IS NULL`)
+    .orderBy(desc(audits.createdAt));
+}
+
+/** Admin-only: returns ALL audits including soft-deleted ones (for restore UI) */
+export async function getAllAuditsIncludeDeleted() {
+  const db = await getDb();
+  if (!db) return [];
   return db.select().from(audits).orderBy(desc(audits.createdAt));
 }
 
 export async function getAuditById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
+  // Returns the row regardless of deletedAt so individual lookups (trail, restore) still work
   const r = await db.select().from(audits).where(eq(audits.id, id)).limit(1);
   return r[0];
 }
@@ -259,7 +305,11 @@ export async function getAuditsForConsultant(consultantId: number) {
   return db
     .select()
     .from(audits)
-    .where(and(eq(audits.supervisorId, consultantId), eq(audits.status, "pending")))
+    .where(and(
+      eq(audits.supervisorId, consultantId),
+      eq(audits.status, "pending"),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
     .orderBy(desc(audits.createdAt));
 }
 
@@ -291,7 +341,10 @@ export async function getMyAudits(userId: number) {
   return db
     .select()
     .from(audits)
-    .where(eq(audits.submittedById, userId))
+    .where(and(
+      eq(audits.submittedById, userId),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
     .orderBy(desc(audits.createdAt));
 }
 
@@ -301,28 +354,41 @@ export async function getMyDraftAudits(userId: number) {
   return db
     .select()
     .from(audits)
-    .where(and(eq(audits.submittedById, userId), eq(audits.status, "draft")))
+    .where(and(
+      eq(audits.submittedById, userId),
+      eq(audits.status, "draft"),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
     .orderBy(desc(audits.updatedAt));
 }
 
-export async function deleteAudit(id: number) {
+/** Soft-delete an audit by setting deletedAt = now(). Does NOT hard-delete. */
+export async function softDeleteAudit(id: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
-  await db.delete(audits).where(eq(audits.id, id));
+  await db.update(audits).set({ deletedAt: new Date() }).where(eq(audits.id, id));
+}
+
+/** Admin-only: restore a soft-deleted audit by clearing deletedAt. */
+export async function restoreAudit(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(audits).set({ deletedAt: null }).where(eq(audits.id, id));
 }
 
 // ─── Admin overview helpers ─────────────────────────────────────────────────
 
-/** Counts all audits grouped by status (excludes drafts) for admin overview */
+/** Counts all audits grouped by status (excludes drafts, excludes soft-deleted) for admin overview */
 export async function getAdminOverviewStats() {
   const db = await getDb();
-  if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, drafts: 0 };
-  const all = await db.select().from(audits);
+  if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0, drafts: 0, changes_requested: 0 };
+  const all = await db.select().from(audits).where(sql`${audits.deletedAt} IS NULL`);
   return {
     total: all.filter(a => a.status !== 'draft').length,
     pending: all.filter(a => a.status === 'pending').length,
     approved: all.filter(a => a.status === 'approved').length,
     rejected: all.filter(a => a.status === 'rejected').length,
+    changes_requested: all.filter(a => a.status === 'changes_requested').length,
     drafts: all.filter(a => a.status === 'draft').length,
   };
 }
@@ -332,7 +398,10 @@ export async function getAuditsPerConsultant() {
   const db = await getDb();
   if (!db) return [];
   const names = await db.select().from(consultantNames).where(eq(consultantNames.active, true)).orderBy(consultantNames.fullName);
-  const allAudits = await db.select().from(audits).where(ne(audits.status, 'draft'));
+  const allAudits = await db.select().from(audits).where(and(
+    ne(audits.status, 'draft'),
+    sql`${audits.deletedAt} IS NULL`,
+  ));
   return names.map(cn => ({
     id: cn.id,
     fullName: cn.fullName,
@@ -356,6 +425,57 @@ export async function getApproachingDeadlines(daysAhead = 30) {
     .where(and(
       or(eq(audits.status, 'pending'), eq(audits.status, 'approved')),
       ne(audits.status, 'draft'),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
+    .orderBy(audits.auditEndDate);
+  return all.filter(a => {
+    if (!a.auditEndDate) return false;
+    const d = new Date(a.auditEndDate);
+    return d >= now && d <= cutoff;
+  });
+}
+
+/**
+ * Returns approaching deadlines for a specific consultant's assigned audits.
+ * Used by ConsultantDashboard P23.
+ */
+export async function getApproachingDeadlinesForConsultant(consultantId: number, daysAhead = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+  const all = await db
+    .select()
+    .from(audits)
+    .where(and(
+      eq(audits.supervisorId, consultantId),
+      or(eq(audits.status, 'pending'), eq(audits.status, 'approved')),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
+    .orderBy(audits.auditEndDate);
+  return all.filter(a => {
+    if (!a.auditEndDate) return false;
+    const d = new Date(a.auditEndDate);
+    return d >= now && d <= cutoff;
+  });
+}
+
+/**
+ * Returns approaching deadlines for a specific clinician's own submitted audits.
+ * Used by ClinicianDashboard P23.
+ */
+export async function getApproachingDeadlinesForUser(userId: number, daysAhead = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+  const all = await db
+    .select()
+    .from(audits)
+    .where(and(
+      eq(audits.submittedById, userId),
+      or(eq(audits.status, 'pending'), eq(audits.status, 'approved')),
+      sql`${audits.deletedAt} IS NULL`,
     ))
     .orderBy(audits.auditEndDate);
   return all.filter(a => {
@@ -372,7 +492,10 @@ export async function getRecentRegistrations(limit = 10) {
   return db
     .select()
     .from(audits)
-    .where(ne(audits.status, 'draft'))
+    .where(and(
+      ne(audits.status, 'draft'),
+      sql`${audits.deletedAt} IS NULL`,
+    ))
     .orderBy(desc(audits.submittedAt))
     .limit(limit);
 }
@@ -592,7 +715,7 @@ export async function getNextRefCounter(date: string): Promise<number> {
 // ─── Deadline reminder helpers ────────────────────────────────────────────────
 
 /**
- * Return all active (non-archived) audits in 'pending' or 'approved' status
+ * Return all active (non-archived, non-deleted) audits in 'pending' or 'approved' status
  * that have a non-null auditEndDate. Used by the deadline-reminder cron handler
  * to identify audits approaching their deadline.
  */
@@ -606,9 +729,39 @@ export async function getAuditsForDeadlineReminder() {
       and(
         eq(audits.archived, false),
         or(eq(audits.status, "pending"), eq(audits.status, "approved")),
-        sql`${audits.auditEndDate} IS NOT NULL`
+        sql`${audits.auditEndDate} IS NOT NULL`,
+        sql`${audits.deletedAt} IS NULL`,
       )
     );
+}
+
+/**
+ * Return all approved audits that have a re-audit timeline of 6months or 12months,
+ * a decidedAt timestamp, and have not yet had a re-audit reminder sent.
+ * Used by the re-audit reminder cron handler (Prompt 27).
+ */
+export async function getAuditsForReauditReminder() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(audits)
+    .where(
+      and(
+        eq(audits.status, "approved"),
+        sql`${audits.reAuditTimeline} IN ('6months', '12months')`,
+        sql`${audits.decidedAt} IS NOT NULL`,
+        sql`${audits.reauditReminderSentAt} IS NULL`,
+        sql`${audits.deletedAt} IS NULL`,
+      )
+    );
+}
+
+/** Mark the re-audit reminder as sent for an audit */
+export async function markReauditReminderSent(id: number, sentAt: Date = new Date()): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(audits).set({ reauditReminderSentAt: sentAt }).where(eq(audits.id, id));
 }
 
 /**

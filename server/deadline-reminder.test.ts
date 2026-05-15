@@ -30,6 +30,7 @@ vi.mock("./db", () => ({
 
 vi.mock("./_core/email", () => ({
   sendDeadlineReminderEmail: vi.fn().mockResolvedValue(true),
+  sendReauditReminderEmail: vi.fn().mockResolvedValue(true),
   sendAuditSubmissionEmails: vi.fn().mockResolvedValue(undefined),
   sendAuditStatusEmails: vi.fn().mockResolvedValue(undefined),
   sendVerificationEmail: vi.fn().mockResolvedValue(false),
@@ -242,14 +243,14 @@ describe("deadlineRemindersHandler — reminder logic", () => {
     vi.useRealTimers();
   });
 
-  it("returns { processed: 0, sent: { sevenDay: 0, oneDay: 0 } } when no audits", async () => {
+  it("returns { processed: 0, sent: { sevenDay: 0, oneDay: 0, reaudit: 0 } } when no audits", async () => {
     vi.mocked(db.getAuditsForDeadlineReminder).mockResolvedValue([]);
     const app = buildApp();
     const res = await request(app)
       .get("/api/scheduled/deadline-reminders")
       .set("x-cron-secret", TEST_SECRET);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ processed: 0, sent: { sevenDay: 0, oneDay: 0 } });
+    expect(res.body).toEqual({ processed: 0, sent: { sevenDay: 0, oneDay: 0, reaudit: 0 } });
   });
 
   it("sends 7-day reminder for audit due in ~7 days (reminder7SentAt null)", async () => {

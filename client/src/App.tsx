@@ -21,6 +21,7 @@ import AuditCalendar from "./pages/AuditCalendar";
 import ConsultantDecisionLog from "./pages/ConsultantDecisionLog";
 import UserManagement from "./pages/UserManagement";
 import UserApprovals from "./pages/UserApprovals";
+import ConsultantRoster from "./pages/ConsultantRoster";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -121,6 +122,7 @@ function AppRouter() {
         <Route path="/decision-log" component={ConsultantDecisionLog} />
         <Route path="/users" component={UserManagement} />
         <Route path="/approvals" component={UserApprovals} />
+        <Route path="/admin/roster" component={ConsultantRoster} />
         <Route path="/notifications" component={Notifications} />
       </Switch>
     </AppLayout>

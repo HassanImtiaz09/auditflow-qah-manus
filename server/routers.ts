@@ -61,15 +61,22 @@ import {
   updateUserProfile,
   getMyAudits,
   getMyDraftAudits,
-  deleteAudit,
+  softDeleteAudit,
+  restoreAudit,
   getAuditsForConsultantAll,
   getUserByLinkedConsultantId,
   updateLinkedConsultant,
   getConsultantNames,
+  getAllConsultantNames,
   addConsultantName,
+  updateConsultantName,
+  deactivateConsultantName,
+  reactivateConsultantName,
   getAdminOverviewStats,
   getAuditsPerConsultant,
   getApproachingDeadlines,
+  getApproachingDeadlinesForConsultant,
+  getApproachingDeadlinesForUser,
   getRecentRegistrations,
   getUserByEmailVerifyToken,
   setEmailVerifyToken,
@@ -78,6 +85,9 @@ import {
   getNextRefCounter,
   getAuditPublicStatus,
   computeEventHash,
+  getAllAuditsIncludeDeleted,
+  markReauditReminderSent,
+  getAuditsForReauditReminder,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -500,7 +510,14 @@ const auditRouter = router({
       if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
       if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
       if (audit.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft audits can be deleted." });
-      await deleteAudit(input.auditId);
+      await softDeleteAudit(input.auditId);
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: ctx.user.id,
+        actorName: ctx.user.fullName ?? ctx.user.name ?? "Unknown",
+        eventType: "deleted",
+        detail: "Draft deleted by submitter",
+      });
       return { success: true };
     }),
 
@@ -809,7 +826,7 @@ const auditRouter = router({
         // Consultants use "approved" / "rejected".
         // Admins must use the "admin_override_*" variants to explicitly signal an override.
         // This prevents accidental admin decisions on audits not assigned to them.
-        decision: z.enum(["approved", "rejected", "admin_override_approved", "admin_override_rejected"]),
+        decision: z.enum(["approved", "rejected", "changes_requested", "admin_override_approved", "admin_override_rejected", "admin_override_changes_requested"]),
         note: z.string().optional(),
       })
     )
@@ -820,14 +837,14 @@ const auditRouter = router({
       }
 
       // Role / decision-variant consistency check:
-      // - Consultants may only use the regular variants.
+      // - Consultants may only use the regular variants (approved, rejected, changes_requested).
       // - Admins may only use the admin_override variants.
       const isOverride = input.decision.startsWith("admin_override_");
       if (user.auditRole === "consultant" && isOverride) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Consultants cannot use admin override decisions." });
       }
       if (user.auditRole === "admin" && !isOverride) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admins must use admin_override_approved or admin_override_rejected." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admins must use admin_override_approved, admin_override_rejected, or admin_override_changes_requested." });
       }
 
       // Fetch the audit — needed for the status guard and subsequent notifications.
@@ -853,10 +870,13 @@ const auditRouter = router({
       }
 
       // Resolve the canonical status and trail event type from the decision variant.
-      const canonicalStatus: "approved" | "rejected" = isOverride
-        ? (input.decision === "admin_override_approved" ? "approved" : "rejected")
-        : (input.decision as "approved" | "rejected");
-      const trailEventType: "approved" | "rejected" = canonicalStatus;
+      type CanonicalDecision = "approved" | "rejected" | "changes_requested";
+      const canonicalStatus: CanonicalDecision = isOverride
+        ? (input.decision === "admin_override_approved" ? "approved"
+          : input.decision === "admin_override_rejected" ? "rejected"
+          : "changes_requested")
+        : (input.decision as CanonicalDecision);
+      const trailEventType: "approved" | "rejected" | "changes_requested" = canonicalStatus;
       const trailDetail = isOverride
         ? `Admin override — ${input.note ?? ""}`
         : (input.note ?? null);
@@ -880,11 +900,18 @@ const auditRouter = router({
         const deciderName = user.fullName ?? user.name ?? "Your supervisor";
         const refNum = auditForDecide.refNumber;
         const noteText = input.note ? ` Note: "${input.note}"` : "";
-        const msgVerb = canonicalStatus === "approved" ? "approved" : "rejected";
+        const notifType =
+          canonicalStatus === "approved" ? "audit_approved" as const
+          : canonicalStatus === "rejected" ? "audit_rejected" as const
+          : "audit_changes_requested" as const;
+        const msgVerb =
+          canonicalStatus === "approved" ? "approved"
+          : canonicalStatus === "rejected" ? "rejected"
+          : "returned with changes requested";
         await createNotification({
           recipientId: auditForDecide.submittedById,
           userId: user.id,
-          type: canonicalStatus === "approved" ? "audit_approved" : "audit_rejected",
+          type: notifType,
           message: `Your audit ${refNum} has been ${msgVerb} by ${deciderName}.${noteText}`,
         });
       }
@@ -1147,8 +1174,202 @@ const auditRouter = router({
       pending: mapped.filter((a) => a.status === "pending"),
       approved: mapped.filter((a) => a.status === "approved"),
       rejected: mapped.filter((a) => a.status === "rejected"),
+      changes_requested: mapped.filter((a) => a.status === "changes_requested"),
     };
   }),
+
+  /**
+   * Clinician: audits with auditEndDate within the next 30 days (own submissions only).
+   * Used by ClinicianDashboard P23.
+   */
+  myDeadlines: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const raw = await getApproachingDeadlinesForUser(ctx.user.id, 30);
+    return raw.map(a => ({
+      id: a.id,
+      refNumber: a.refNumber,
+      topic: a.topic,
+      category: a.category,
+      status: a.status,
+      auditEndDate: a.auditEndDate,
+      daysRemaining: a.auditEndDate
+        ? Math.ceil((new Date(a.auditEndDate).getTime() - Date.now()) / 86400000)
+        : null,
+    }));
+  }),
+
+  /**
+   * Consultant: audits with auditEndDate within the next 30 days (assigned audits only).
+   * Used by ConsultantDashboard P23.
+   */
+  consultantDeadlines: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    const lookupId = user.linkedConsultantId ?? -1;
+    const raw = user.auditRole === "admin"
+      ? await getApproachingDeadlines(30)
+      : await getApproachingDeadlinesForConsultant(lookupId, 30);
+    return raw.map(a => ({
+      id: a.id,
+      refNumber: a.refNumber,
+      topic: a.topic,
+      category: a.category,
+      status: a.status,
+      submitterName: a.submitterName,
+      auditEndDate: a.auditEndDate,
+      daysRemaining: a.auditEndDate
+        ? Math.ceil((new Date(a.auditEndDate).getTime() - Date.now()) / 86400000)
+        : null,
+    }));
+  }),
+
+  /**
+   * Clinician: resubmit an audit that has been returned with changes_requested.
+   * Resets status to 'pending' and records a 'resubmitted' trail event.
+   */
+  resubmit: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.submittedById !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+      if (audit.status !== "changes_requested") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only audits with status 'changes_requested' can be resubmitted." });
+      }
+      await updateAudit(input.auditId, { status: "pending", decidedAt: null, decisionNote: null });
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: "resubmitted",
+        detail: "Resubmitted after changes requested",
+      });
+      // Notify the assigned supervisor (if any)
+      if (audit.supervisorId) {
+        const supervisorUser = await getUserByLinkedConsultantId(audit.supervisorId);
+        if (supervisorUser) {
+          await createNotification({
+            recipientId: supervisorUser.id,
+            userId: user.id,
+            type: "audit_resubmitted",
+            message: `Audit ${audit.refNumber} has been resubmitted by ${user.fullName ?? user.name ?? "the clinician"} after changes.`,
+          });
+        }
+      }
+      return { success: true };
+    }),
+
+  /**
+   * Admin: soft-delete an audit (sets deletedAt, hides from all list queries).
+   * The audit can be restored via audits.restore.
+   */
+  softDelete: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.deletedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Audit is already deleted." });
+      await softDeleteAudit(input.auditId);
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: "deleted",
+        detail: "Soft-deleted by admin",
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Admin: restore a soft-deleted audit (clears deletedAt).
+   */
+  restore: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!audit.deletedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Audit is not deleted." });
+      await restoreAudit(input.auditId);
+      await createAuditEvent({
+        auditId: input.auditId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.name ?? "Unknown",
+        eventType: "restored",
+        detail: "Restored by admin",
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Admin: returns all soft-deleted audits (for the restore UI).
+   */
+  listDeleted: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const all = await getAllAuditsIncludeDeleted();
+    return all
+      .filter(a => a.deletedAt !== null)
+      .map(a => ({
+        id: a.id,
+        refNumber: a.refNumber,
+        topic: a.topic,
+        category: a.category,
+        status: a.status,
+        submitterName: a.submitterName,
+        deletedAt: a.deletedAt,
+      }));
+  }),
+
+  /** Admin: returns ALL consultant roster entries (active + inactive) */
+  rosterAll: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    return getAllConsultantNames();
+  }),
+
+  /** Admin: update a consultant roster entry */
+  rosterUpdate: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().max(64).nullable().optional(),
+      fullName: z.string().min(2).max(255).optional(),
+      grade: z.string().max(128).nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await updateConsultantName(input.id, { title: input.title, fullName: input.fullName, grade: input.grade });
+      return { success: true };
+    }),
+
+  /** Admin: deactivate (soft-delete) a consultant roster entry */
+  rosterDeactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await deactivateConsultantName(input.id);
+      return { success: true };
+    }),
+
+  /** Admin: reactivate a deactivated consultant roster entry */
+  rosterReactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await reactivateConsultantName(input.id);
+      return { success: true };
+    }),
 
   /** ADMIN-ONLY: Returns all audits each with their full audit trail — used for PDF export */
   listWithHistory: protectedProcedure.query(async ({ ctx }) => {

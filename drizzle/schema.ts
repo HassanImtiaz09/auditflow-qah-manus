@@ -90,7 +90,7 @@ export const audits = mysqlTable("audits", {
   collaborators: text("collaborators"), // JSON array stored as text
   description: text("description"),
 
-  status: mysqlEnum("status", ["draft", "pending", "approved", "rejected"])
+  status: mysqlEnum("status", ["draft", "pending", "approved", "rejected", "changes_requested"])
     .default("draft")
     .notNull(),
   /** Consultant's decision note */
@@ -169,6 +169,16 @@ export const audits = mysqlTable("audits", {
   reminder7SentAt: timestamp("reminder7SentAt"),
   /** Timestamp when the 1-day deadline reminder was sent; null = not yet sent */
   reminder1SentAt: timestamp("reminder1SentAt"),
+  /**
+   * Soft-delete timestamp. Non-null means the audit has been deleted.
+   * All list queries must filter out rows where deletedAt IS NOT NULL.
+   */
+  deletedAt: timestamp("deletedAt"),
+  /**
+   * Timestamp when the re-audit reminder email was sent.
+   * Used to deduplicate re-audit window reminders from the cron handler.
+   */
+  reauditReminderSentAt: timestamp("reauditReminderSentAt"),
 });
 
 export type Audit = typeof audits.$inferSelect;
@@ -182,7 +192,7 @@ export const notifications = mysqlTable("notifications", {
   recipientId: int("recipientId").notNull(),
   /** FK → users.id (the user who triggered the notification) */
   userId: int("userId").notNull(),
-  type: mysqlEnum("type", ["consultant_registered", "audit_submitted", "audit_assigned", "audit_reassigned", "audit_approved", "audit_rejected", "account_approved"]).notNull(),
+  type: mysqlEnum("type", ["consultant_registered", "audit_submitted", "audit_assigned", "audit_reassigned", "audit_approved", "audit_rejected", "audit_changes_requested", "audit_resubmitted", "account_approved"]).notNull(),
   message: text("message").notNull(),
   read: boolean("read").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -222,11 +232,16 @@ export const auditEvents = mysqlTable("auditEvents", {
     "submitted",
     "approved",
     "rejected",
+    "changes_requested",
+    "resubmitted",
     "reassigned",
     "archived",
     "unarchived",
     "draft_saved",
     "comment",
+    "deleted",
+    "restored",
+    "reaudit_started",
   ]).notNull(),
   /** Optional human-readable detail (e.g. decision note, new supervisor name) */
   detail: text("detail"),

@@ -79,6 +79,7 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/settings",      label: "Settings",       icon: Settings,      consultantOnly: true },
       { path: "/decision-log",  label: "Decision Log",   icon: ShieldCheck,   consultantOnly: true },
       { path: "/users",         label: "User Management",icon: Users,         adminOnly: true },
+      { path: "/admin/roster",   label: "Consultant Roster",icon: Users,       adminOnly: true },
       { path: "/approvals",     label: "User Approvals", icon: ClipboardCheck,adminOnly: true, badge: true, badgeKey: "notif" },
       { path: "/notifications",  label: "Notifications",  icon: Bell,           badge: true, badgeKey: "personal_notif" },
       { path: "/profile",         label: "My Profile",     icon: UserCircle },
