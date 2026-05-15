@@ -598,3 +598,11 @@
 - [x] Update all test files that mock getAdminUser → getAdminUsers returning an array
 - [x] server/admin-notify.test.ts: new tests — multiple admins each receive notification on registration and submission
 - [x] Run pnpm test and npx tsc --noEmit — all pass (282 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 19: Strip dead Manus OAuth flow
+- [x] Remove `registerOAuthRoutes(app)` call and its import from server/_core/index.ts
+- [x] Delete server/_core/oauth.ts
+- [x] Remove ENV.appId and ENV.oAuthServerUrl from server/_core/env.ts (only used by sdk.ts)
+- [x] Delete server/_core/sdk.ts (only imported by oauth.ts)
+- [x] Verify COOKIE_NAME is only used in NHS auth paths after deletion
+- [x] Run pnpm test and npx tsc --noEmit — all pass (282 tests, 0 TypeScript errors)
