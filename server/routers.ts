@@ -804,7 +804,10 @@ const auditRouter = router({
     .input(
       z.object({
         auditId: z.number(),
-        decision: z.enum(["approved", "rejected"]),
+        // Consultants use "approved" / "rejected".
+        // Admins must use the "admin_override_*" variants to explicitly signal an override.
+        // This prevents accidental admin decisions on audits not assigned to them.
+        decision: z.enum(["approved", "rejected", "admin_override_approved", "admin_override_rejected"]),
         note: z.string().optional(),
       })
     )
@@ -813,18 +816,51 @@ const auditRouter = router({
       if (!user || (user.auditRole !== "consultant" && user.auditRole !== "admin")) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
+
+      // Role / decision-variant consistency check:
+      // - Consultants may only use the regular variants.
+      // - Admins may only use the admin_override variants.
+      const isOverride = input.decision.startsWith("admin_override_");
+      if (user.auditRole === "consultant" && isOverride) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Consultants cannot use admin override decisions." });
+      }
+      if (user.auditRole === "admin" && !isOverride) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admins must use admin_override_approved or admin_override_rejected." });
+      }
+
+      // Fetch the audit — needed for the status guard and subsequent notifications.
+      const auditForDecide = await getAuditById(input.auditId);
+      if (!auditForDecide) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Audit not found." });
+      }
+
+      // Status guard: only pending audits can be decided.
+      if (auditForDecide.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Audit is not pending — decision cannot be applied.",
+        });
+      }
+
       // Consultants may only decide on audits explicitly assigned to them as supervisor.
-      // supervisorId on audits = seeded consultantNames record id = user.linkedConsultantId
       if (user.auditRole === "consultant") {
-        const audit = await getAuditById(input.auditId);
         const assignedId = user.linkedConsultantId ?? -1;
-        if (!audit || audit.supervisorId !== assignedId) {
+        if (auditForDecide.supervisorId !== assignedId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You are not the assigned supervisor for this audit." });
         }
       }
-      const auditForDecide = await getAuditById(input.auditId);
+
+      // Resolve the canonical status and trail event type from the decision variant.
+      const canonicalStatus: "approved" | "rejected" = isOverride
+        ? (input.decision === "admin_override_approved" ? "approved" : "rejected")
+        : (input.decision as "approved" | "rejected");
+      const trailEventType: "approved" | "rejected" = canonicalStatus;
+      const trailDetail = isOverride
+        ? `Admin override — ${input.note ?? ""}`
+        : (input.note ?? null);
+
       await updateAudit(input.auditId, {
-        status: input.decision,
+        status: canonicalStatus,
         decisionNote: input.note ?? null,
         decidedById: user.id,
         decidedAt: new Date(),
@@ -834,33 +870,31 @@ const auditRouter = router({
         auditId: input.auditId,
         actorId: user.id,
         actorName: user.fullName ?? user.name ?? "Unknown",
-        eventType: input.decision,
-        detail: input.note ?? null,
+        eventType: trailEventType,
+        detail: trailDetail,
       });
       // Notify the submitter of the decision (in-app)
-      if (auditForDecide && auditForDecide.submittedById) {
+      if (auditForDecide.submittedById) {
         const deciderName = user.fullName ?? user.name ?? "Your supervisor";
         const refNum = auditForDecide.refNumber;
         const noteText = input.note ? ` Note: "${input.note}"` : "";
-        const msgVerb = input.decision === "approved" ? "approved" : "rejected";
+        const msgVerb = canonicalStatus === "approved" ? "approved" : "rejected";
         await createNotification({
           recipientId: auditForDecide.submittedById,
           userId: user.id,
-          type: input.decision === "approved" ? "audit_approved" : "audit_rejected",
+          type: canonicalStatus === "approved" ? "audit_approved" : "audit_rejected",
           message: `Your audit ${refNum} has been ${msgVerb} by ${deciderName}.${noteText}`,
         });
       }
       // Send email notifications to submitter, collaborators, and acting consultant
-      if (auditForDecide) {
-        const actorName = user.fullName ?? user.name ?? "Your supervisor";
-        await sendAuditStatusEmails({
-          audit: auditForDecide,
-          decision: input.decision,
-          actorName,
-          actorEmail: user.email ?? null,
-          note: input.note ?? null,
-        });
-      }
+      const actorName = user.fullName ?? user.name ?? "Your supervisor";
+      await sendAuditStatusEmails({
+        audit: auditForDecide,
+        decision: canonicalStatus,
+        actorName,
+        actorEmail: user.email ?? null,
+        note: input.note ?? null,
+      });
       return { success: true };
     }),
 
@@ -914,6 +948,16 @@ const auditRouter = router({
         supervisorName = `${sup.title ? sup.title + " " : ""}${sup.fullName}`.trim();
       }
       const auditForReassign = await getAuditById(input.auditId);
+      if (!auditForReassign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Audit not found." });
+      }
+      // Status guard: only pending audits can be reassigned.
+      if (auditForReassign.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Audit is not pending — reassignment cannot be applied.",
+        });
+      }
       await updateAudit(input.auditId, {
         supervisorId: input.supervisorId,
         supervisorName,

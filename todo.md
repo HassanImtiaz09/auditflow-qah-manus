@@ -580,3 +580,12 @@
 - [x] Add comment noting that a narrowly-scoped middleware should be introduced for any future large-payload endpoint
 - [x] server/body-limit.test.ts: 4 tests — small payload 200, >1mb JSON 413, 900kb JSON 200, >1mb urlencoded 413
 - [x] Run pnpm test and pnpm check — all pass (261 tests, 0 TypeScript errors)
+
+## Tranche A — Prompt 17: Defensive audits.decide checks
+
+- [x] server/routers.ts audits.decide: fetch audit before deciding; throw BAD_REQUEST if audit.status !== "pending"
+- [x] server/routers.ts audits.decide: extend decision input enum to include "admin_override_approved" and "admin_override_rejected"; restrict consultants to regular variants, admins to override variants
+- [x] server/routers.ts audits.decide: record admin_override variants in trail with eventType "approved"/"rejected" and detail prefix "Admin override — "
+- [x] server/routers.ts audits.reassign: add pending-status guard — throw BAD_REQUEST if audit.status !== "pending"
+- [x] server/decide-guards.test.ts: 15 tests — pending guard (decide on approved/rejected), role/variant consistency (4 cases), admin_override resolution and trail prefix (5 cases), reassign pending guard (3 cases)
+- [x] Run pnpm test and pnpm check — all pass (276 tests, 0 TypeScript errors)
