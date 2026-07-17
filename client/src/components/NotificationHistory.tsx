@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
-import { Mail, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Mail, AlertCircle, CheckCircle, Clock, Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { EmailDetailsModal } from "./EmailDetailsModal";
 
 export interface NotificationHistoryProps {
   auditId?: number;
@@ -18,6 +21,8 @@ export function NotificationHistory({
   supervisorMode = false,
   limit = 50,
 }: NotificationHistoryProps) {
+  const [selectedEmail, setSelectedEmail] = useState<any>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // Fetch history based on mode
@@ -144,7 +149,11 @@ export function NotificationHistory({
             {history.map((email) => (
               <tr
                 key={email.id}
-                className="hover:bg-muted/30 transition-colors"
+                className="hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => {
+                  setSelectedEmail(email);
+                  setModalOpen(true);
+                }}
               >
                 <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
                   {format(new Date(email.sentAt), "MMM d, yyyy HH:mm")}
@@ -181,6 +190,18 @@ export function NotificationHistory({
                     >
                       {email.status.charAt(0).toUpperCase() + email.status.slice(1)}
                     </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 ml-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEmail(email);
+                        setModalOpen(true);
+                      }}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                   {email.errorMessage && (
                     <p className="text-xs text-red-600 mt-1">{email.errorMessage}</p>
@@ -198,6 +219,16 @@ export function NotificationHistory({
           Showing {limit} most recent emails. Older emails are archived.
         </p>
       )}
+
+      {/* Email Details Modal */}
+      <EmailDetailsModal
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedEmail(null);
+        }}
+        email={selectedEmail}
+      />
     </div>
   );
 }

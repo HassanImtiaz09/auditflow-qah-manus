@@ -737,3 +737,14 @@
 - [x] Verify all animations work smoothly
 - [x] Test notification history on supervisor dashboard
 - [x] Checkpoint and deliver
+
+### Email Details Modal
+- [x] Create `EmailDetailsModal.tsx` component with full email content viewer
+- [x] Add modal state management to `NotificationHistory.tsx`
+- [x] Display email subject, recipient, type, timestamp, status in modal
+- [x] Display full email body (HTML or plain text) in modal
+- [x] Add error message display if email send failed
+- [x] Add copy-to-clipboard button for email content
+- [x] Style modal with consistent design (card, shadows, typography)
+- [x] Test modal opens/closes correctly
+- [x] Test modal displays all email details accurately
