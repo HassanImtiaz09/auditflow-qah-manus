@@ -408,7 +408,8 @@
 
   /* Loading skeleton */
   .skeleton {
-    @apply bg-muted rounded animate-pulse-soft;
+    @apply bg-muted rounded;
+    animation: pulse-soft 2s ease-in-out infinite;
   }
 
   /* Smooth link underline */
