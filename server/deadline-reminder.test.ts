@@ -26,6 +26,7 @@ vi.mock("./db", () => ({
   updateAuditReminderSent: vi.fn(),
   createNotification: vi.fn(),
   getUserById: vi.fn(),
+  getUserByLinkedConsultantId: vi.fn(),
 }));
 
 vi.mock("./_core/email", () => ({
@@ -75,6 +76,7 @@ function makeAudit(overrides: Partial<{
   submitterName: string;
   submitterEmail: string;
   collaborators: string | null;
+  supervisorId: number | null;
 }> = {}) {
   return {
     id: 1,
@@ -89,6 +91,7 @@ function makeAudit(overrides: Partial<{
     submitterName: "Dr. Smith",
     submitterEmail: "smith@porthosp.nhs.uk",
     collaborators: null,
+    supervisorId: null,
     ...overrides,
   };
 }
@@ -361,5 +364,44 @@ describe("deadlineRemindersHandler — reminder logic", () => {
     expect(res.body.processed).toBe(3);
     expect(res.body.sent.sevenDay).toBe(1);
     expect(res.body.sent.oneDay).toBe(1);
+  });
+});
+
+  it("sends reminder to supervisor when supervisorId is set", async () => {
+    const sevenDayDeadline = new Date(TODAY.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    vi.mocked(db.getAuditsForDeadlineReminder).mockResolvedValue([
+      makeAudit({
+        id: 20,
+        auditEndDate: sevenDayDeadline,
+        supervisorId: 5,
+      }) as never,
+    ]);
+
+    // Mock supervisor lookup
+    vi.mocked(db.getUserByLinkedConsultantId).mockResolvedValue({
+      id: 50,
+      openId: "supervisor-1",
+      name: "Dr. Jones",
+      fullName: "Dr. Sarah Jones",
+      email: "jones@porthosp.nhs.uk",
+    } as never);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get("/api/scheduled/deadline-reminders")
+      .set("x-cron-secret", TEST_SECRET);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sent.sevenDay).toBe(1);
+
+    // Verify sendDeadlineReminderEmail was called at least twice (submitter + supervisor)
+    expect(vi.mocked(email.sendDeadlineReminderEmail).mock.calls.length).toBeGreaterThanOrEqual(2);
+
+    // Check that supervisor email was included
+    const supervisorEmailCall = vi.mocked(email.sendDeadlineReminderEmail).mock.calls.find(
+      (call) => call[0].to === "jones@porthosp.nhs.uk"
+    );
+    expect(supervisorEmailCall).toBeDefined();
   });
 });

@@ -13,6 +13,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { deadlineRemindersHandler } from "../deadlineReminders";
+import { createHeartbeatJob, listHeartbeatJobs } from "./heartbeat";
+import { ENV } from "./env";
 
 // ─── CSRF defence-in-depth ────────────────────────────────────────────────────
 
@@ -149,6 +151,37 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // ── Register deadline-reminders cron on startup ────────────────────────────
+  if (ENV.cronSecret) {
+    try {
+      // Check if cron already exists
+      const result = await listHeartbeatJobs("");
+      const jobs = result.jobs || [];
+      const alreadyExists = jobs.some((job: any) => job.name === "deadline-reminders");
+      if (!alreadyExists) {
+        const createResult = await createHeartbeatJob(
+          {
+            name: "deadline-reminders",
+            cron: "0 0 7 * * *", // 07:00 UTC daily (6-field format with seconds)
+            path: "/api/scheduled/deadline-reminders",
+            description: "Daily deadline reminder emails (7-day and 1-day windows)",
+          },
+          "" // empty userSession falls back to project owner
+        );
+        logger.info(
+          { taskUid: createResult.taskUid, nextExecution: createResult.nextExecutionAt },
+          "[Heartbeat] Registered deadline-reminders cron"
+        );
+      } else {
+        logger.info("[Heartbeat] deadline-reminders cron already registered");
+      }
+    } catch (err) {
+      logger.warn({ err }, "[Heartbeat] Failed to register deadline-reminders cron");
+    }
+  } else {
+    logger.warn("[Heartbeat] CRON_SECRET not configured, skipping cron registration");
+  }
 
   // ── Security headers ───────────────────────────────────────────────────────
   // Helmet is applied in both dev and production. CSP uses 'unsafe-inline' for

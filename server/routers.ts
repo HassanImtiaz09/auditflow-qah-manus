@@ -806,6 +806,7 @@ const auditRouter = router({
           }
         }
         // Send submission confirmation emails to submitter and collaborators
+        const supervisorUser = input.supervisorId ? await getUserByLinkedConsultantId(input.supervisorId) : null;
         await sendAuditSubmissionEmails({
           refNumber,
           topic: input.topic,
@@ -813,6 +814,7 @@ const auditRouter = router({
           submitterEmail: user.email ?? null,
           supervisorName,
           collaborators: input.collaborators ? JSON.stringify(input.collaborators) : null,
+          supervisorEmail: supervisorUser?.email ?? null,
         });
       }
 

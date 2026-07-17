@@ -15,4 +15,6 @@ export const ENV = {
   smtpPass: process.env.SMTP_PASS ?? "",
   smtpFrom: process.env.SMTP_FROM ?? "AuditFlow QAH <no-reply@auditflow.nhs.uk>",
   smtpSecure: process.env.SMTP_SECURE === "true",
+  // Cron job authentication
+  cronSecret: process.env.CRON_SECRET ?? "",
 };

@@ -33,6 +33,7 @@
  */
 
 import type { Request, Response } from "express";
+import crypto from "crypto";
 import {
   getAuditsForDeadlineReminder,
   getAuditsForReauditReminder,
@@ -40,9 +41,11 @@ import {
   updateAuditReminderSent,
   createNotification,
   getUserById,
+  getUserByLinkedConsultantId,
 } from "./db";
 import { sendDeadlineReminderEmail, sendReauditReminderEmail } from "./_core/email";
 import { logger } from "./_core/logger";
+import { ENV } from "./_core/env";
 
 /** Half-day tolerance window in milliseconds (12 hours). */
 const HALF_DAY_MS = 12 * 60 * 60 * 1000;
@@ -94,13 +97,21 @@ export async function deadlineRemindersHandler(
   res: Response
 ): Promise<void> {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    res.status(500).json({ error: "CRON_SECRET is not configured" });
+  if (!ENV.cronSecret) {
+    res.status(401).json({ error: "Unauthorized: CRON_SECRET not configured" });
     return;
   }
   const provided = req.headers["x-cron-secret"];
-  if (provided !== cronSecret) {
+  if (!provided || typeof provided !== "string") {
+    res.status(401).json({ error: "Unauthorized: missing x-cron-secret header" });
+    return;
+  }
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(ENV.cronSecret))) {
+      res.status(401).json({ error: "Unauthorized: invalid x-cron-secret" });
+      return;
+    }
+  } catch {
     res.status(401).json({ error: "Unauthorized: invalid x-cron-secret" });
     return;
   }
@@ -126,16 +137,17 @@ export async function deadlineRemindersHandler(
     if (!audit.auditEndDate) continue;
 
     const days = daysRemaining(now, audit.auditEndDate);
+    const daysRounded = Math.ceil(days);
 
-    // ── 7-day window ────────────────────────────────────────────────────────
-    if (inWindow(days, 7) && audit.reminder7SentAt == null) {
-      await sendReminders(audit, Math.round(days), "reminder7SentAt");
+    // ── 7-day window (days 6-7) ─────────────────────────────────────────────
+    if (daysRounded >= 6 && daysRounded <= 7 && audit.reminder7SentAt == null) {
+      await sendReminders(audit, daysRounded, "reminder7SentAt");
       sevenDaySent++;
     }
 
-    // ── 1-day window ────────────────────────────────────────────────────────
-    if (inWindow(days, 1) && audit.reminder1SentAt == null) {
-      await sendReminders(audit, Math.round(days), "reminder1SentAt");
+    // ── 1-day window (days 0-1) ─────────────────────────────────────────────
+    if (daysRounded >= 0 && daysRounded <= 1 && audit.reminder1SentAt == null) {
+      await sendReminders(audit, daysRounded, "reminder1SentAt");
       oneDaySent++;
     }
   }
@@ -250,6 +262,17 @@ async function sendReminders(
   for (const c of collaborators) {
     if (!recipients.some((r) => r.email === c.email)) {
       recipients.push({ name: c.name ?? c.email, email: c.email });
+    }
+  }
+
+  // Add assigned supervisor (if any)
+  if (audit.supervisorId) {
+    const supervisor = await getUserByLinkedConsultantId(audit.supervisorId);
+    if (supervisor?.email && !recipients.some((r) => r.email === supervisor.email)) {
+      recipients.push({
+        name: supervisor.fullName ?? supervisor.name ?? "Supervisor",
+        email: supervisor.email,
+      });
     }
   }
 

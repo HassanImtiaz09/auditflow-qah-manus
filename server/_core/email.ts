@@ -521,8 +521,9 @@ export async function sendAuditSubmissionEmails(opts: {
   submitterEmail: string | null;
   supervisorName: string | null;
   collaborators: string | null; // raw JSON
+  supervisorEmail?: string | null; // optional supervisor email recipient
 }): Promise<void> {
-  const { refNumber, topic, submitterName, submitterEmail, supervisorName, collaborators } = opts;
+  const { refNumber, topic, submitterName, submitterEmail, supervisorName, collaborators, supervisorEmail } = opts;
 
   // Escape user-controlled values
   const eRefNumber = escapeHtml(refNumber);
@@ -534,8 +535,21 @@ export async function sendAuditSubmissionEmails(opts: {
     ? `<p>The audit has been assigned to <strong>${eSupervisorName}</strong> for review.</p>`
     : `<p>The audit is awaiting assignment to a supervising consultant.</p>`;
 
-  const buildBody = (recipientName: string) => {
+  const buildBody = (recipientName: string, isSupervisor: boolean = false) => {
     const eRecipientName = escapeHtml(recipientName);
+    if (isSupervisor) {
+      return `
+      <p>Dear ${eRecipientName},</p>
+      <p>A new clinical audit has been submitted for your review.</p>
+      <div style="background:#f0f4fa;border-left:4px solid #003366;border-radius:4px;padding:14px 18px;margin:18px 0;">
+        <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Reference number</p>
+        <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${eRefNumber}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Audit topic</p>
+        <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#003366;">${eTopic}</p>
+      </div>
+      <p>Please log in to <a href="https://auditqah-436kjx9h.manus.space/approval-queue" style="color:#003366;">AuditFlow QAH</a> to review this submission in your Approval Queue.</p>
+      <p style="font-size:12px;color:#6b7280;">If you believe you received this in error, please contact your department audit lead.</p>`;
+    }
     return `
     <p>Dear ${eRecipientName},</p>
     <p>This is a confirmation that the following clinical audit has been successfully submitted to
@@ -568,9 +582,15 @@ export async function sendAuditSubmissionEmails(opts: {
     }
   }
 
+  // Add supervisor to recipients (deduped)
+  if (supervisorEmail && !recipients.find(r => r.email === supervisorEmail)) {
+    recipients.push({ name: supervisorName || "Supervisor", email: supervisorEmail });
+  }
+
   await Promise.allSettled(
     recipients.map(async (r) => {
-      const html = baseTemplate(subject, buildBody(r.name));
+      const isSupervisor = !!(supervisorEmail && r.email === supervisorEmail);
+      const html = baseTemplate(subject, buildBody(r.name, isSupervisor));
       const text = `Dear ${r.name},\n\nAudit ${refNumber} ("${topic}") has been submitted by ${submitterName} and is awaiting consultant review.\n${supervisorName ? `Assigned to: ${supervisorName}` : "Awaiting supervisor assignment."}\n\nYou will receive a further email when the audit has been reviewed.`;
       await sendEmail({ to: r.email, subject, html, text });
     })
@@ -658,14 +678,15 @@ export async function sendDeadlineReminderEmail(
 
   const bodyHtml = `
     <p>Dear ${eRecipientName},</p>
-    <p>This is a reminder that the following clinical audit is due <strong>${urgency}</strong>.</p>
+    <p>This is a reminder that your audit's data-collection period is scheduled to close <strong>${urgency}</strong>.</p>
     <div class="audit-box">
       <p class="ref">${eRefNumber}</p>
       <p class="title">${eTopic}</p>
     </div>
     <p><strong>Deadline:</strong> ${eDeadlineDate}</p>
-    <p>Please ensure all data collection is complete and the audit is ready for submission before the deadline. If you need an extension, contact your assigned consultant or the audit administrator.</p>
+    <p>Please ensure data collection is on track. If you need more time, please contact your supervising consultant.</p>
     <p style="font-size:12px;color:#6b7280;">You are receiving this message because you are listed as a submitter or collaborator on this audit.</p>`;
+
 
   const subject = safeSubject(
     `[AuditFlow] ${urgencyLabel}: "${topic}" due ${urgency} — ${refNumber}`
