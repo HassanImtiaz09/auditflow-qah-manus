@@ -32,6 +32,14 @@ import PendingApproval from "./pages/PendingApproval";
 import StatusLookup from "./pages/StatusLookup";
 import { trpc } from "./lib/trpc";
 
+function PageTransitionWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="animate-page-fade-in">
+      {children}
+    </div>
+  );
+}
+
 function AppRouter() {
   const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
@@ -107,24 +115,26 @@ function AppRouter() {
 
   return (
     <AppLayout user={currentUser} onLogout={handleLogout}>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/login" component={Dashboard} />
-        <Route path="/submit" component={SubmitAudit} />
-        <Route path="/profile" component={ProfileSettings} />
-        <Route path="/check-status" component={CheckStatus} />
-        <Route path="/approval-queue" component={ApprovalQueue} />
-        <Route path="/registry" component={AuditRegistry} />
-        <Route path="/statistics" component={Statistics} />
-        <Route path="/export" component={ExportData} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/calendar" component={AuditCalendar} />
-        <Route path="/decision-log" component={ConsultantDecisionLog} />
-        <Route path="/users" component={UserManagement} />
-        <Route path="/approvals" component={UserApprovals} />
-        <Route path="/admin/roster" component={ConsultantRoster} />
-        <Route path="/notifications" component={Notifications} />
-      </Switch>
+      <PageTransitionWrapper key={location}>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/login" component={Dashboard} />
+          <Route path="/submit" component={SubmitAudit} />
+          <Route path="/profile" component={ProfileSettings} />
+          <Route path="/check-status" component={CheckStatus} />
+          <Route path="/approval-queue" component={ApprovalQueue} />
+          <Route path="/registry" component={AuditRegistry} />
+          <Route path="/statistics" component={Statistics} />
+          <Route path="/export" component={ExportData} />
+          <Route path="/settings" component={SettingsPage} />
+          <Route path="/calendar" component={AuditCalendar} />
+          <Route path="/decision-log" component={ConsultantDecisionLog} />
+          <Route path="/users" component={UserManagement} />
+          <Route path="/approvals" component={UserApprovals} />
+          <Route path="/admin/roster" component={ConsultantRoster} />
+          <Route path="/notifications" component={Notifications} />
+        </Switch>
+      </PageTransitionWrapper>
     </AppLayout>
   );
 }

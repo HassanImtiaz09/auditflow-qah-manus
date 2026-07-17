@@ -59,6 +59,7 @@ export default function UserApprovals() {
     onSuccess: () => {
       toast.success("User approved successfully.");
       utils.users.pending.invalidate();
+      utils.users.pendingCount.invalidate();
       utils.users.all.invalidate();
       setConsultantDialog(null);
       setSelectedConsultantId("");
@@ -73,6 +74,7 @@ export default function UserApprovals() {
     onSuccess: () => {
       toast.success("User rejected.");
       utils.users.pending.invalidate();
+      utils.users.pendingCount.invalidate();
     },
     onError: err => toast.error(err.message),
   });

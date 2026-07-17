@@ -1500,6 +1500,13 @@ const auditRouter = router({
 // ─── Users Router ─────────────────────────────────────────────────────────────
 
 const usersRouter = router({
+  pendingCount: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const pending = await getPendingUsers();
+    return pending.length;
+  }),
+
   pending: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
     if (!user || user.auditRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });

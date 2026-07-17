@@ -677,3 +677,46 @@
 - [x] P27: Surface "Audits due for re-audit" in AdminDashboard (system-wide)
 - [x] P27: "Start re-audit" button prefills new submission with linkedAuditId set to parent
 - [x] P27: Parent audit trail gets "child_reaudit_submitted" event on re-audit submission
+
+
+## Current Session — Notification Count Accuracy & UI Redesign
+
+### Phase 1: Notification Count Fixes
+- [x] Fix admin "User Approvals" badge — derive from `users.pending` instead of unread notifications
+- [x] Implement real-time badge updates using tRPC polling or manual refetch on mutations
+- [x] Add tRPC query for pending user count (admin only)
+- [x] Update AppLayout badge logic to use correct data sources
+- [x] Verify all badges update immediately after approval/rejection actions
+- [x] Write unit tests for badge count accuracy
+
+### Phase 2: Real-Time Notification Updates
+- [x] Add automatic refetch to AppLayout after mutations (approve, reject, submit, decide)
+- [x] Implement 30-second polling for notifications (optional, low priority)
+- [x] Ensure badge updates across all pages without manual refresh
+
+### Phase 3: UI/UX Redesign — Visual Foundation
+- [x] Update global typography: improve font choices (system fonts for clarity)
+- [x] Increase contrast ratios: ensure all text meets WCAG AA standards (4.5:1 for body, 3:1 for large text)
+- [x] Refine color palette: stronger accent colors, better semantic color usage
+- [x] Update index.css with new design tokens
+- [x] Improve button styling: better visual feedback and hierarchy
+- [x] Enhance card/container styling: better depth and visual separation
+
+### Phase 4: UI/UX Redesign — Transitions & Interactions
+- [x] Add smooth page transitions: fade effects between routes
+- [x] Implement smooth tab transitions within pages
+- [x] Add micro-interactions: button press feedback, hover states, loading states
+- [x] Improve modal/dialog animations
+- [x] Add loading skeletons for async data
+- [x] Enhance form interactions: focus states, validation feedback
+
+### Phase 5: Testing & Verification
+- [ ] Run full test suite (unit + integration)
+- [ ] Verify notification counts on all dashboards
+- [ ] Test badge updates after approval/rejection
+- [ ] Visual testing across all pages
+- [ ] Mobile responsiveness check
+
+### Phase 6: Deliver Results
+- [ ] Save checkpoint
+- [ ] Provide summary of changes

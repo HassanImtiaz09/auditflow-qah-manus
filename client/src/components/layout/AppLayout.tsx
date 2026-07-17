@@ -102,11 +102,13 @@ export default function AppLayout({ user, children, onLogout }: Props) {
 
   const { data: queue } = trpc.audits.myQueue.useQuery();
   const { data: notifications } = trpc.notifications.unread.useQuery();
+  const { data: pendingApprovalsCount = 0 } = trpc.users.pendingCount.useQuery(
+    undefined,
+    { enabled: isAdmin }
+  );
+  const utils = trpc.useUtils();
   const pendingCount = queue?.length ?? 0;
-  // Admin-facing notifications (consultant registrations, audit submissions)
-  const notifCount = notifications?.filter(n =>
-    n.type === "consultant_registered" || n.type === "audit_submitted"
-  ).length ?? 0;
+  const notifCount = isAdmin ? pendingApprovalsCount : 0;
   // Personal notifications for the current user (approvals, rejections, reassignments)
   const personalNotifCount = notifications?.filter(n =>
     n.type === "audit_approved" || n.type === "audit_rejected" || n.type === "audit_reassigned"
