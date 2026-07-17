@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { and, desc, eq, like, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { auditComments, auditEvents, audits, consultantNames, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertUser, notifications, passwordResetTokens, refCounters, users } from "../drizzle/schema";
+import { auditComments, auditEvents, audits, consultantNames, emailHistory, InsertAuditComment, InsertAuditEvent, InsertConsultantName, InsertEmailHistory, InsertUser, notifications, passwordResetTokens, refCounters, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { logger } from "./_core/logger";
 
@@ -781,4 +781,75 @@ export async function updateAuditReminderSent(
     .update(audits)
     .set({ [field]: sentAt })
     .where(eq(audits.id, id));
+}
+
+
+// ─── Email History helpers ────────────────────────────────────────────────────
+
+/**
+ * Log an email to the history table for audit trail and notification history display.
+ */
+export async function logEmailHistory(record: InsertEmailHistory): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(emailHistory).values(record);
+  } catch (err) {
+    logger.warn({ err, record }, "[EmailHistory] Failed to log email");
+  }
+}
+
+/**
+ * Get all emails for a specific audit, ordered by most recent first.
+ */
+export async function getEmailHistoryForAudit(auditId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(emailHistory)
+    .where(eq(emailHistory.auditId, auditId))
+    .orderBy(desc(emailHistory.sentAt));
+}
+
+/**
+ * Get all emails sent to a specific supervisor (by email address), ordered by most recent first.
+ * Used for the supervisor dashboard notification history.
+ */
+export async function getEmailHistoryForSupervisor(supervisorEmail: string, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(emailHistory)
+    .where(eq(emailHistory.recipientEmail, supervisorEmail))
+    .orderBy(desc(emailHistory.sentAt))
+    .limit(limit);
+}
+
+/**
+ * Get email statistics for a supervisor (count by type, total sent, failed, etc.)
+ */
+export async function getEmailHistoryStatsForSupervisor(supervisorEmail: string) {
+  const db = await getDb();
+  if (!db) return { total: 0, sent: 0, failed: 0, byType: {} };
+
+  const rows = await db
+    .select({
+      status: emailHistory.status,
+      emailType: emailHistory.emailType,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(emailHistory)
+    .where(eq(emailHistory.recipientEmail, supervisorEmail))
+    .groupBy(emailHistory.status, emailHistory.emailType);
+
+  const stats = { total: 0, sent: 0, failed: 0, byType: {} as Record<string, number> };
+  for (const row of rows) {
+    stats.total += row.count;
+    if (row.status === "sent") stats.sent += row.count;
+    if (row.status === "failed") stats.failed += row.count;
+    stats.byType[row.emailType] = (stats.byType[row.emailType] || 0) + row.count;
+  }
+  return stats;
 }

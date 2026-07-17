@@ -29,9 +29,11 @@ import {
   ShieldCheck,
   CalendarClock,
   ListChecks,
+  Mail,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
+import { NotificationHistory } from "@/components/NotificationHistory";
 
 const LOGO_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663430072618/436kjx9HnHs4DfQBN2oU96/auditflow-logo-EjJ5FaZLtyvkjMQHAcbGWR.webp";
@@ -539,6 +541,17 @@ function ConsultantDashboard({ firstName }: { firstName: string }) {
             )}
           </ul>
         )}
+      </div>
+
+      {/* Email notification history */}
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mt-5">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <Mail className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Email Notification History</span>
+        </div>
+        <div className="p-4">
+          <NotificationHistory supervisorMode={true} limit={20} />
+        </div>
       </div>
     </div>
   );

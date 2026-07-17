@@ -200,6 +200,44 @@ export const notifications = mysqlTable("notifications", {
 
 export type Notification = typeof notifications.$inferSelect;
 
+// ─── Email History (Track all sent emails for audit trail and notification history) ───
+
+export const emailHistory = mysqlTable("emailHistory", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK → audits.id (nullable for non-audit emails) */
+  auditId: int("auditId"),
+  /** Email recipient address */
+  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  /** Recipient name for display */
+  recipientName: varchar("recipientName", { length: 255 }),
+  /** Email type: submission, status_change, deadline_reminder, reassignment */
+  emailType: mysqlEnum("emailType", [
+    "submission",
+    "status_change",
+    "deadline_reminder_7day",
+    "deadline_reminder_1day",
+    "reassignment",
+    "reaudit_reminder",
+  ]).notNull(),
+  /** Email subject line */
+  subject: varchar("subject", { length: 512 }).notNull(),
+  /** Email body (plain text or HTML) */
+  body: text("body"),
+  /** Audit reference number for quick lookup */
+  auditRefNumber: varchar("auditRefNumber", { length: 64 }),
+  /** Audit topic for display */
+  auditTopic: varchar("auditTopic", { length: 512 }),
+  /** Send status: sent, failed, pending */
+  status: mysqlEnum("status", ["sent", "failed", "pending"]).default("sent").notNull(),
+  /** Error message if status is failed */
+  errorMessage: text("errorMessage"),
+  /** Timestamp when email was sent */
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+});
+
+export type EmailHistory = typeof emailHistory.$inferSelect;
+export type InsertEmailHistory = typeof emailHistory.$inferInsert;
+
 // ─── Password Reset Tokens ────────────────────────────────────────────────────
 
 export const passwordResetTokens = mysqlTable("passwordResetTokens", {

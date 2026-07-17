@@ -1733,6 +1733,60 @@ const adminRouter = router({
   }),
 });
 
+// ─── Email History Router ──────────────────────────────────────────────────
+
+const emailHistoryRouter = router({
+  /**
+   * Get email history for the current user's supervised audits.
+   * Supervisors can see all emails sent related to audits they supervise.
+   */
+  getSupervisorHistory: protectedProcedure
+    .input(z.object({ limit: z.number().max(100).default(50) }))
+    .query(async ({ input, ctx }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user || user.email === null) throw new TRPCError({ code: "UNAUTHORIZED" });
+      if (user.auditRole !== "consultant" && user.auditRole !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getEmailHistoryForSupervisor } = await import("./db");
+      return getEmailHistoryForSupervisor(user.email, input.limit);
+    }),
+
+  /**
+   * Get email statistics for the current supervisor.
+   */
+  getSupervisorStats: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user || user.email === null) throw new TRPCError({ code: "UNAUTHORIZED" });
+    if (user.auditRole !== "consultant" && user.auditRole !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    const { getEmailHistoryStatsForSupervisor } = await import("./db");
+    return getEmailHistoryStatsForSupervisor(user.email);
+  }),
+
+  /**
+   * Get email history for a specific audit.
+   */
+  getAuditHistory: protectedProcedure
+    .input(z.object({ auditId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const audit = await getAuditById(input.auditId);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      const user = await getUserById(ctx.user.id);
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      // Allow access if: submitter, supervisor, or admin
+      const isSubmitter = audit.submittedById === ctx.user.id;
+      const isSupervisor = audit.supervisorId && user.linkedConsultantId === audit.supervisorId;
+      const isAdmin = user.auditRole === "admin";
+      if (!isSubmitter && !isSupervisor && !isAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getEmailHistoryForAudit } = await import("./db");
+      return getEmailHistoryForAudit(input.auditId);
+    }),
+});
+
 // ─── App Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -1742,6 +1796,7 @@ export const appRouter = router({
   users: usersRouter,
   notifications: notificationsRouter,
   admin: adminRouter,
+  emailHistory: emailHistoryRouter,
 });
 
 export type AppRouter = typeof appRouter;
